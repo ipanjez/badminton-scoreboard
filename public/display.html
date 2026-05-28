@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Display Scoreboard Bulutangkis</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    :root {
+      --bg-0: #030712;
+      --bg-1: #07111f;
+      --panel: rgba(9, 15, 28, 0.92);
+      --panel-strong: rgba(2, 6, 23, 0.98);
+      --line: rgba(148, 163, 184, 0.22);
+      --text: #f8fafc;
+      --muted: #bbcadb;
+      --green: #39ff88;
+      --yellow: #f9e65c;
+      --cyan: #66d9ff;
+      --red: #ff5f7e;
+      --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(59, 130, 246, 0.18), transparent 28%),
+        radial-gradient(circle at 82% 12%, rgba(34, 197, 94, 0.16), transparent 24%),
+        radial-gradient(circle at 50% 78%, rgba(249, 230, 92, 0.08), transparent 22%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-0));
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .screen {
+      width: 100vw;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 12px;
+      padding: clamp(10px, 1vw, 16px);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1.45fr 0.85fr;
+      gap: 16px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, var(--panel), var(--panel-strong));
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .titlecard {
+      border-radius: 30px;
+      padding: 18px 22px;
+      display: grid;
+      gap: 8px;
+      align-content: center;
+      min-height: 96px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .titlecard::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, transparent 0%, rgba(102, 217, 255, 0.08) 45%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .tournament {
+      font-size: clamp(20px, 2.8vw, 46px);
+      font-weight: 1000;
+      text-transform: uppercase;
+      line-height: 0.98;
+      letter-spacing: 0.02em;
+      word-break: break-word;
+    }
+
+    .category {
+      font-size: clamp(13px, 1.3vw, 22px);
+      color: var(--muted);
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .title-pill {
+      min-width: 96px;
+      border-radius: 18px;
+      padding: 10px 12px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--yellow);
+      text-align: center;
+      font-size: clamp(12px, 1vw, 15px);
+      font-weight: 900;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+
+    .statuscard {
+      border-radius: 30px;
+      padding: 16px 18px;
+      display: grid;
+      gap: 10px;
+      align-content: center;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      font-size: clamp(13px, 1.2vw, 18px);
+      font-weight: 800;
+      letter-spacing: 0.03em;
+    }
+
+    .status-row span:last-child {
+      color: var(--yellow);
+      text-align: right;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 1.15fr minmax(310px, 28vw) 1.15fr;
+      gap: 12px;
+      align-items: stretch;
+      min-height: 0;
+    }
+
+    .sidecard,
+    .scorecard {
+      border-radius: 34px;
+      padding: clamp(14px, 1.3vw, 20px);
+      min-height: 0;
+    }
+
+    .sidecard {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+    }
+
+    .side-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .side-tag {
+      font-size: clamp(12px, 1vw, 16px);
+      font-weight: 1000;
+      letter-spacing: 0.35em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .service-indicator {
+      min-width: 72px;
+      border-radius: 18px;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, #f9e65c, #a4f12c);
+      color: #05110a;
+      font-size: clamp(18px, 2vw, 28px);
+      font-weight: 1000;
+      letter-spacing: 0.22em;
+      text-align: center;
+      opacity: 0.22;
+      transform: scale(0.96);
+      box-shadow: 0 0 0 2px rgba(183, 243, 76, 0.08), 0 0 26px rgba(54, 255, 135, 0.18);
+      transition: opacity 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+
+    .service-indicator.active {
+      opacity: 1;
+      transform: scale(1);
+      box-shadow: 0 0 0 2px rgba(183, 243, 76, 0.22), 0 0 34px rgba(183, 243, 76, 0.24);
+    }
+
+    .player-name {
+      align-self: center;
+      display: grid;
+      gap: 4px;
+      font-size: clamp(16px, 2.2vw, 34px);
+      font-weight: 1000;
+      line-height: 0.9;
+      text-transform: uppercase;
+      word-break: break-word;
+    }
+
+    .player-line {
+      display: block;
+    }
+
+    .player-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: clamp(10px, 0.95vw, 14px);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .meta-chip {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .scorecard {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      text-align: center;
+      background:
+        linear-gradient(180deg, rgba(10, 15, 28, 0.98), rgba(2, 6, 23, 0.98)),
+        radial-gradient(circle at 50% 30%, rgba(34, 197, 94, 0.16), transparent 44%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .scorecard::before,
+    .scorecard::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .scorecard::before {
+      background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%);
+      mix-blend-mode: screen;
+    }
+
+    .scorecard::after {
+      background: radial-gradient(circle at 50% 50%, rgba(102, 217, 255, 0.08), transparent 55%);
+    }
+
+    .score-top {
+      position: relative;
+      z-index: 1;
+      font-size: clamp(11px, 0.95vw, 15px);
+      color: var(--muted);
+      letter-spacing: 0.36em;
+      text-transform: uppercase;
+      font-weight: 1000;
+    }
+
+    .score-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: stretch;
+      min-height: 0;
+    }
+
+    .score-box {
+      border-radius: 30px;
+      padding: 14px 10px 16px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      background: rgba(5, 10, 20, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .score-box .label {
+      font-size: clamp(12px, 1vw, 15px);
+      font-weight: 900;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .score-box .value {
+      align-self: center;
+      font-size: clamp(66px, 10vw, 136px);
+      line-height: 0.88;
+      font-weight: 1000;
+      letter-spacing: 0.03em;
+      color: var(--green);
+      text-shadow: 0 0 12px rgba(57, 255, 136, 0.24), 0 0 26px rgba(57, 255, 136, 0.18);
+    }
+
+    .score-box.b .value {
+      color: var(--yellow);
+      text-shadow: 0 0 12px rgba(249, 230, 92, 0.24), 0 0 26px rgba(249, 230, 92, 0.18);
+    }
+
+    .center-stack {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 10px;
+      align-content: center;
+      justify-items: center;
+    }
+
+    .center-badge {
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--muted);
+      font-size: clamp(11px, 0.95vw, 14px);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      font-weight: 900;
+    }
+
+    .match-status {
+      color: var(--text);
+      font-size: clamp(16px, 1.5vw, 22px);
+      font-weight: 1000;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    .status-strip {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 16px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: clamp(12px, 1.05vw, 16px);
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .status-strip strong {
+      color: var(--text);
+      letter-spacing: 0.05em;
+    }
+
+    .footer {
+      border-radius: 26px;
+      padding: 14px 20px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      color: var(--muted);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: clamp(11px, 0.95vw, 14px);
+    }
+
+    .footer .state {
+      color: var(--text);
+      font-weight: 1000;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 1080px) {
+      .topbar,
+      .board {
+        grid-template-columns: 1fr;
+      }
+
+      .scorecard {
+        order: -1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="screen">
+    <section class="topbar">
+      <div class="card titlecard">
+        <div class="title-row">
+          <div id="tournamentName" class="tournament">NAMA TURNAMEN</div>
+          <div id="gameBadge" class="title-pill">GAME 1</div>
+        </div>
+        <div id="category" class="category">KATEGORI</div>
+      </div>
+
+      <div class="card statuscard">
+        <div class="status-row"><span>Court</span><span id="courtNumber">-</span></div>
+        <div class="status-row"><span>Game</span><span id="activeGame">1</span></div>
+        <div class="status-row"><span>Status</span><span id="matchStatus">LIVE</span></div>
+      </div>
+    </section>
+
+    <section class="board">
+      <article class="card sidecard">
+        <div class="side-header">
+          <div class="side-tag">LEFT SIDE</div>
+          <div id="serviceA" class="service-indicator">S</div>
+        </div>
+
+        <div>
+          <div id="playerA" class="player-name">
+            <span class="player-line">PLAYER / TEAM</span>
+            <span class="player-line">A</span>
+          </div>
+        </div>
+
+        <div class="player-meta">
+          <div id="metaA" class="meta-chip">WAITING</div>
+          <div id="scoreAmini" class="meta-chip">0 Poin</div>
+        </div>
+      </article>
+
+      <article class="card scorecard">
+        <div class="score-top">Real-Time Scoreboard</div>
+
+        <div class="score-grid">
+          <div class="score-box a">
+            <div class="label">A</div>
+            <div id="scoreA" class="value">0</div>
+          </div>
+
+          <div class="score-box b">
+            <div class="label">B</div>
+            <div id="scoreB" class="value">0</div>
+          </div>
+        </div>
+
+        <div class="center-stack">
+          <div id="winnerState" class="center-badge">Winner -</div>
+          <div id="matchSummary" class="match-status">BELUM BERLANGSUNG</div>
+        </div>
+
+        <div class="status-strip">
+          <span>Interval <strong id="intervalState">OFF</strong></span>
+          <span>Deuce <strong id="deuceState">NO</strong></span>
+          <span>Game Wins <strong id="gameWinsState">0-0</strong></span>
+        </div>
+      </article>
+
+      <article class="card sidecard">
+        <div class="side-header">
+          <div class="side-tag">RIGHT SIDE</div>
+          <div id="serviceB" class="service-indicator">R</div>
+        </div>
+
+        <div>
+          <div id="playerB" class="player-name">
+            <span class="player-line">PLAYER / TEAM</span>
+            <span class="player-line">B</span>
+          </div>
+        </div>
+
+        <div class="player-meta">
+          <div id="metaB" class="meta-chip">WAITING</div>
+          <div id="scoreBmini" class="meta-chip">0 Poin</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="card footer">
+      <div>Socket.io</div>
+      <div id="connectionState" class="state">TERHUBUNG</div>
+      <div id="lastUpdate">-</div>
+    </section>
+  </main>
+
+  <script>
+    const socket = window.io(window.location.origin, {
+      auth: {
+        page: 'display',
+        deviceLabel: 'Display Scoreboard',
+        platform: navigator.platform || 'unknown',
+        language: navigator.language || 'unknown',
+        screen: `${window.screen.width}x${window.screen.height}`,
+        userAgent: navigator.userAgent || 'unknown',
+        ipAddress: window.location.hostname || 'localhost'
+      }
+    });
+
+    const elements = {
+      tournamentName: document.getElementById('tournamentName'),
+      category: document.getElementById('category'),
+      courtNumber: document.getElementById('courtNumber'),
+      activeGame: document.getElementById('activeGame'),
+      gameBadge: document.getElementById('gameBadge'),
+      matchStatus: document.getElementById('matchStatus'),
+      matchSummary: document.getElementById('matchSummary'),
+      playerA: document.getElementById('playerA'),
+      playerB: document.getElementById('playerB'),
+      scoreA: document.getElementById('scoreA'),
+      scoreB: document.getElementById('scoreB'),
+      scoreAmini: document.getElementById('scoreAmini'),
+      scoreBmini: document.getElementById('scoreBmini'),
+      serviceA: document.getElementById('serviceA'),
+      serviceB: document.getElementById('serviceB'),
+      metaA: document.getElementById('metaA'),
+      metaB: document.getElementById('metaB'),
+      intervalState: document.getElementById('intervalState'),
+      deuceState: document.getElementById('deuceState'),
+      winnerState: document.getElementById('winnerState'),
+      gameWinsState: document.getElementById('gameWinsState'),
+      connectionState: document.getElementById('connectionState'),
+      lastUpdate: document.getElementById('lastUpdate')
+    };
+
+    function getCurrentScore(state) {
+      const gameNumber = Number(state.activeGame || 1);
+      return state[`scoreGame${gameNumber}`] || state.scoreGame1 || { a: 0, b: 0 };
+    }
+
+    function setActiveServiceIndicator(side) {
+      elements.serviceA.classList.toggle('active', side === 'A');
+      elements.serviceB.classList.toggle('active', side === 'B');
+    }
+
+    function formatTeamLines(state, side) {
+      const lines = side === 'A'
+        ? [state.playerA1, state.playerA2].filter(Boolean)
+        : [state.playerB1, state.playerB2].filter(Boolean);
+
+      if (lines.length === 0) {
+        return ['PLAYER / TEAM', side === 'A' ? 'A' : 'B'];
+      }
+
+      if (lines.length === 1) {
+        return [lines[0], ''];
+      }
+
+      return lines;
+    }
+
+    function renderTeamName(element, lines) {
+      element.innerHTML = lines.map((line) => `<span class="player-line">${line || '&nbsp;'}</span>`).join('');
+    }
+
+    function renderState(state) {
+      if (!state) return;
+
+      const score = getCurrentScore(state);
+      const serviceSide = String(state.serverSide || '').toUpperCase();
+      const currentGame = Number(state.activeGame || 1);
+      const gameWinsA = Number(state.gameWins?.a || 0);
+      const gameWinsB = Number(state.gameWins?.b || 0);
+      const deuce = score.a >= 20 && score.b >= 20 && score.a === score.b;
+
+      elements.tournamentName.textContent = state.tournamentName || 'NAMA TURNAMEN';
+      elements.category.textContent = state.category || 'KATEGORI';
+      elements.courtNumber.textContent = state.courtNumber || '-';
+      elements.activeGame.textContent = String(currentGame);
+      elements.gameBadge.textContent = `GAME ${currentGame}`;
+      elements.matchStatus.textContent = state.matchFinished ? 'FINISHED' : 'LIVE';
+      elements.matchSummary.textContent = state.matchFinished
+        ? `${state.winnerSide || '-'} MENANG PERTANDINGAN`
+        : (state.gameFinished ? 'GAME SELESAI' : (state.intervalReached ? 'INTERVAL' : 'LIVE'));
+
+      renderTeamName(elements.playerA, formatTeamLines(state, 'A'));
+      renderTeamName(elements.playerB, formatTeamLines(state, 'B'));
+
+      elements.scoreA.textContent = String(score.a ?? 0);
+      elements.scoreB.textContent = String(score.b ?? 0);
+      elements.scoreAmini.textContent = `${score.a ?? 0} Poin`;
+      elements.scoreBmini.textContent = `${score.b ?? 0} Poin`;
+      elements.metaA.textContent = serviceSide === 'A' ? 'S' : 'WAITING';
+      elements.metaB.textContent = serviceSide === 'B' ? 'S' : 'WAITING';
+      elements.intervalState.textContent = state.intervalReached ? 'ON' : 'OFF';
+      elements.deuceState.textContent = deuce ? 'YES' : 'NO';
+      elements.winnerState.textContent = state.matchFinished ? (state.winnerSide || '-') : '-';
+      elements.gameWinsState.textContent = `${gameWinsA}-${gameWinsB}`;
+      elements.connectionState.textContent = 'TERHUBUNG';
+      elements.lastUpdate.textContent = new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      setActiveServiceIndicator(serviceSide);
+      document.title = `${state.tournamentName || 'Display Scoreboard'} - ${score.a ?? 0}:${score.b ?? 0}`;
+    }
+
+    socket.on('connect', () => {
+      socket.emit('state:request');
+    });
+
+    socket.on('disconnect', () => {
+      elements.connectionState.textContent = 'PUTUS';
+    });
+
+    socket.on('state:update', renderState);
+  </script>
+</body>
+</html>

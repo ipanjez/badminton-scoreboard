@@ -1,0 +1,26 @@
+{
+  "name": "badminton-scoreboard-local",
+  "version": "1.0.0",
+  "description": "Aplikasi scoreboard bulutangkis lokal tanpa internet menggunakan Node.js, Express, Socket.io, dan PDF export.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "badminton",
+    "scoreboard",
+    "express",
+    "socket.io",
+    "pdf"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2",
+    "pdfmake": "^0.2.10",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
+    "socket.io": "^4.8.1"
+  }
+}

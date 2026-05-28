@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Controller Scoreboard Bulutangkis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/vendor/jspdf/dist/jspdf.umd.min.js"></script>
+  <script src="/vendor/jspdf-autotable/dist/jspdf.plugin.autotable.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          boxShadow: {
+            soft: '0 16px 40px rgba(15, 23, 42, 0.12)'
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900">
+  <div class="mx-auto flex min-h-screen max-w-7xl flex-col gap-5 p-4 sm:p-6 lg:p-8">
+    <header class="rounded-[28px] bg-white p-5 shadow-soft ring-1 ring-slate-200">
+      <div class="flex flex-col gap-2">
+        <p class="text-xs font-black uppercase tracking-[0.35em] text-emerald-600">Controller Tablet</p>
+        <h1 class="text-2xl font-black tracking-tight sm:text-3xl">Panel Skor Bulutangkis</h1>
+        <p class="max-w-3xl text-sm text-slate-600 sm:text-base">Isi data pertandingan, pilih single atau double, lalu tekan tombol poin untuk mengirim update real-time ke display.</p>
+      </div>
+      <div class="mt-4 grid gap-3 md:grid-cols-4">
+        <div class="rounded-2xl bg-slate-100 px-4 py-3">
+          <p class="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Status</p>
+          <p id="connectionStatus" class="mt-1 text-sm font-extrabold text-slate-800">Menghubungkan...</p>
+        </div>
+        <div class="rounded-2xl bg-slate-100 px-4 py-3">
+          <p class="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Game Aktif</p>
+          <p id="activeGameLabel" class="mt-1 text-sm font-extrabold text-slate-800">Game 1</p>
+        </div>
+        <div class="rounded-2xl bg-slate-100 px-4 py-3">
+          <p class="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Servis</p>
+          <p id="serviceLabel" class="mt-1 text-sm font-extrabold text-slate-800">-</p>
+        </div>
+        <div class="rounded-2xl bg-slate-100 px-4 py-3">
+          <p class="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Hasil</p>
+          <p id="matchResultLabel" class="mt-1 text-sm font-extrabold text-slate-800">Belum selesai</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+      <section class="rounded-[28px] bg-white p-5 shadow-soft ring-1 ring-slate-200">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-black tracking-tight">Data Pertandingan</h2>
+            <p class="mt-1 text-sm text-slate-500">Form dibuat besar agar nyaman dipakai di tablet.</p>
+          </div>
+          <div class="rounded-full bg-slate-100 px-4 py-2 text-xs font-black uppercase tracking-[0.25em] text-slate-600">Offline LAN</div>
+        </div>
+
+        <div class="mt-5 grid gap-4 md:grid-cols-2">
+          <label class="grid gap-2 md:col-span-2">
+            <span class="text-sm font-bold text-slate-700">Nama Turnamen</span>
+            <input id="tournamentName" class="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-base outline-none transition focus:border-emerald-500 focus:bg-white" placeholder="Contoh: Pupuk Kaltim Open 2025" />
+          </label>
+          <label class="grid gap-2">
+            <span class="text-sm font-bold text-slate-700">Kategori</span>
+            <select id="category" class="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-base outline-none transition focus:border-emerald-500 focus:bg-white">
+              <option value="">Pilih kategori</option>
+              <option value="Men Singles">Men Singles</option>
+              <option value="Women Singles">Women Singles</option>
+              <option value="Men Doubles">Men Doubles</option>
+              <option value="Women Doubles">Women Doubles</option>
+              <option value="Mixed Doubles">Mixed Doubles</option>
+            </select>
+          </label>
+          <label class="grid gap-2">
+            <span class="text-sm font-bold text-slate-700">Nomor Lapangan</span>
+            <input id="courtNumber" class="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-4 text-base outline-none transition focus:border-emerald-500 focus:bg-white" placeholder="Misal: 3" inputmode="numeric" />
+          </label>
+
+          <div class="rounded-[26px] bg-slate-50 p-4 ring-1 ring-slate-200 md:col-span-2">
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="text-sm font-black uppercase tracking-[0.24em] text-slate-500">Team A</h3>
+              <div class="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">Kiri</div>
+            </div>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <input id="playerA1" class="rounded-2xl border border-slate-300 bg-white px-4 py-4 text-base outline-none focus:border-emerald-500" placeholder="Pemain A1 / Nama utama" />
+              <input id="playerA2" class="rounded-2xl border border-slate-300 bg-white px-4 py-4 text-base outline-none focus:border-emerald-500" placeholder="Pemain A2 / Nama pasangan" />
+            </div>
+          </div>
+
+          <div class="rounded-[26px] bg-slate-50 p-4 ring-1 ring-slate-200 md:col-span-2">
+            <div class="flex items-center justify-between gap-3">
+              <h3 class="text-sm font-black uppercase tracking-[0.24em] text-slate-500">Team B</h3>
+              <div class="rounded-full bg-sky-100 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-sky-700">Kanan</div>
+            </div>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <input id="playerB1" class="rounded-2xl border border-slate-300 bg-white px-4 py-4 text-base outline-none focus:border-sky-500" placeholder="Pemain B1 / Nama utama" />
+              <input id="playerB2" class="rounded-2xl border border-slate-300 bg-white px-4 py-4 text-base outline-none focus:border-sky-500" placeholder="Pemain B2 / Nama pasangan" />
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 grid gap-4 lg:grid-cols-[1fr_auto_1fr]">
+          <article class="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Sisi Kiri</p>
+                <h3 id="playerALabel" class="mt-2 text-2xl font-black tracking-tight">-</h3>
+                <p class="mt-2 text-sm text-slate-500">Single atau double akan tampil otomatis.</p>
+              </div>
+              <div id="serviceBadgeA" class="rounded-2xl bg-emerald-600 px-3 py-2 text-white opacity-20 transition">
+                <p class="text-xs font-black uppercase tracking-[0.25em]">S</p>
+              </div>
+            </div>
+            <div class="mt-5 flex items-center gap-3">
+              <button data-point="A" class="flex h-24 flex-1 items-center justify-center rounded-[26px] bg-emerald-600 text-5xl font-black text-white shadow-soft transition active:scale-[0.99]">+</button>
+              <div class="min-w-24 rounded-[26px] bg-white px-5 py-4 text-center ring-1 ring-slate-200">
+                <p class="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Skor</p>
+                <p id="scoreA" class="mt-1 text-4xl font-black">0</p>
+              </div>
+            </div>
+          </article>
+
+          <div class="flex items-center justify-center">
+            <div class="rounded-full bg-slate-900 px-4 py-3 text-sm font-black uppercase tracking-[0.3em] text-white">VS</div>
+          </div>
+
+          <article class="rounded-[28px] border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-[11px] font-black uppercase tracking-[0.28em] text-slate-400">Sisi Kanan</p>
+                <h3 id="playerBLabel" class="mt-2 text-2xl font-black tracking-tight">-</h3>
+                <p class="mt-2 text-sm text-slate-500">Single atau double akan tampil otomatis.</p>
+              </div>
+              <div id="serviceBadgeB" class="rounded-2xl bg-sky-600 px-3 py-2 text-white opacity-20 transition">
+                <p class="text-xs font-black uppercase tracking-[0.25em]">R</p>
+              </div>
+            </div>
+            <div class="mt-5 flex items-center gap-3">
+              <div class="min-w-24 rounded-[26px] bg-white px-5 py-4 text-center ring-1 ring-slate-200">
+                <p class="text-[11px] font-bold uppercase tracking-[0.24em] text-slate-500">Skor</p>
+                <p id="scoreB" class="mt-1 text-4xl font-black">0</p>
+              </div>
+              <button data-point="B" class="flex h-24 flex-1 items-center justify-center rounded-[26px] bg-sky-600 text-5xl font-black text-white shadow-soft transition active:scale-[0.99]">+</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <aside class="rounded-[28px] bg-white p-5 shadow-soft ring-1 ring-slate-200">
+        <h2 class="text-lg font-black tracking-tight">Kontrol Cepat</h2>
+        <p class="mt-1 text-sm text-slate-500">Bisa dipakai cepat saat pertandingan berlangsung.</p>
+
+        <div class="mt-5 grid gap-4">
+          <div class="rounded-[26px] bg-slate-50 p-4 ring-1 ring-slate-200">
+            <p class="text-sm font-bold text-slate-700">Servis Awal</p>
+            <div class="mt-3 flex gap-3">
+              <button data-service="A" class="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-4 text-lg font-black transition hover:border-emerald-500">S A</button>
+              <button data-service="B" class="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-4 text-lg font-black transition hover:border-sky-500">S B</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <button id="undoBtn" class="rounded-[26px] bg-amber-500 px-4 py-5 text-lg font-black text-white shadow-soft transition active:scale-[0.99]">Undo</button>
+            <button id="resetBtn" class="rounded-[26px] bg-rose-600 px-4 py-5 text-lg font-black text-white shadow-soft transition active:scale-[0.99]">Reset</button>
+          </div>
+
+          <button id="exportBtn" class="rounded-[26px] bg-slate-900 px-4 py-5 text-lg font-black text-white shadow-soft transition active:scale-[0.99]">Export PDF</button>
+
+          <div class="rounded-[26px] bg-emerald-50 p-4 ring-1 ring-emerald-200">
+            <p class="text-sm font-bold text-emerald-800">Sinkronisasi</p>
+            <p id="syncLabel" class="mt-2 text-sm text-emerald-700">Siap mengirim data ke server lokal.</p>
+          </div>
+        </div>
+
+        <div class="mt-6 rounded-[26px] border border-dashed border-slate-300 bg-slate-50 p-4">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-sm font-bold text-slate-700">Riwayat / State</p>
+            <div id="matchMeta" class="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Ready</div>
+          </div>
+          <pre id="statePreview" class="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-2xl bg-slate-900 p-4 text-[11px] leading-relaxed text-slate-100">Menunggu data server...</pre>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const socket = window.io(window.location.origin, {
+      auth: {
+        page: 'controller',
+        deviceLabel: 'Controller Tablet',
+        platform: navigator.platform || 'unknown',
+        language: navigator.language || 'unknown',
+        screen: `${window.screen.width}x${window.screen.height}`,
+        userAgent: navigator.userAgent || 'unknown',
+        ipAddress: window.location.hostname || 'localhost'
+      }
+    });
+
+    const elements = {
+      connectionStatus: document.getElementById('connectionStatus'),
+      activeGameLabel: document.getElementById('activeGameLabel'),
+      serviceLabel: document.getElementById('serviceLabel'),
+      matchResultLabel: document.getElementById('matchResultLabel'),
+      tournamentName: document.getElementById('tournamentName'),
+      category: document.getElementById('category'),
+      courtNumber: document.getElementById('courtNumber'),
+      playerA1: document.getElementById('playerA1'),
+      playerA2: document.getElementById('playerA2'),
+      playerB1: document.getElementById('playerB1'),
+      playerB2: document.getElementById('playerB2'),
+      playerALabel: document.getElementById('playerALabel'),
+      playerBLabel: document.getElementById('playerBLabel'),
+      scoreA: document.getElementById('scoreA'),
+      scoreB: document.getElementById('scoreB'),
+      serviceBadgeA: document.getElementById('serviceBadgeA'),
+      serviceBadgeB: document.getElementById('serviceBadgeB'),
+      syncLabel: document.getElementById('syncLabel'),
+      statePreview: document.getElementById('statePreview'),
+      matchMeta: document.getElementById('matchMeta')
+    };
+
+    const serviceButtons = Array.from(document.querySelectorAll('[data-service]'));
+    const pointButtons = Array.from(document.querySelectorAll('[data-point]'));
+    let latestState = null;
+
+    function pad2(value) {
+      return String(value).padStart(2, '0');
+    }
+
+    function formatDateForPdf(dateValue) {
+      const date = dateValue ? new Date(dateValue) : new Date();
+      if (Number.isNaN(date.getTime())) {
+        return new Date().toISOString().slice(0, 10);
+      }
+      return [date.getFullYear(), pad2(date.getMonth() + 1), pad2(date.getDate())].join('-');
+    }
+
+    function formatTimeForPdf(dateValue) {
+      const date = dateValue ? new Date(dateValue) : new Date();
+      if (Number.isNaN(date.getTime())) {
+        return '-';
+      }
+      return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+    }
+
+    function promptOrDefault(message, defaultValue) {
+      const value = window.prompt(message, defaultValue || '');
+      return value === null ? defaultValue || '' : value.trim();
+    }
+
+    function getMatchRowsFromHistory(history = []) {
+      return history
+        .filter((entry) => entry && entry.action === 'applyRallyPoint' && entry.event)
+        .map((entry, index) => {
+          const gameNumber = entry.event.gameNumber || 1;
+          const score = entry.event.score || {};
+          return [
+            String(index + 1),
+            `Game ${gameNumber}`,
+            `${entry.event.winnerSide || '-'} / ${score.scoreA ?? 0}-${score.scoreB ?? 0}`,
+            entry.event.serviceOver ? 'Ya' : 'Tidak',
+            entry.event.deuce ? 'Ya' : 'Tidak',
+            entry.event.intervalReached ? 'Ya' : 'Tidak'
+          ];
+        });
+    }
+
+    function getFinalGameRows(state) {
+      const game1 = state.scoreGame1 || { a: 0, b: 0 };
+      const game2 = state.scoreGame2 || { a: 0, b: 0 };
+      const game3 = state.scoreGame3 || { a: 0, b: 0 };
+      return [
+        ['Game 1', `${game1.a ?? 0}-${game1.b ?? 0}`],
+        ['Game 2', `${game2.a ?? 0}-${game2.b ?? 0}`],
+        ['Game 3', `${game3.a ?? 0}-${game3.b ?? 0}`]
+      ];
+    }
+
+    function exportScoreSheetPdf(state, metadata) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      const umpire = metadata?.umpire || '-';
+      const matchDate = metadata?.matchDate || formatDateForPdf();
+      const tournamentName = state.tournamentName || '-';
+      const category = state.category || '-';
+      const courtNumber = state.courtNumber || '-';
+      const playerA = state.playerA || [state.playerA1, state.playerA2].filter(Boolean).join(' / ') || '-';
+      const playerB = state.playerB || [state.playerB1, state.playerB2].filter(Boolean).join(' / ') || '-';
+      const historyRows = getMatchRowsFromHistory(state.history || []);
+      const finalGameRows = getFinalGameRows(state);
+      let cursorY = 14;
+
+      doc.setFillColor(14, 23, 42);
+      doc.rect(0, 0, 210, 297, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('SCORE SHEET BULUTANGKIS', 105, cursorY, { align: 'center' });
+
+      cursorY += 9;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Turnamen: ${tournamentName}`, 14, cursorY);
+      doc.text(`Tanggal: ${matchDate}`, 120, cursorY);
+      cursorY += 6;
+      doc.text(`Kategori: ${category}`, 14, cursorY);
+      doc.text(`Lapangan: ${courtNumber}`, 120, cursorY);
+      cursorY += 6;
+      doc.text(`Umpire: ${umpire}`, 14, cursorY);
+      doc.text(`Waktu cetak: ${formatTimeForPdf()}`, 120, cursorY);
+      cursorY += 10;
+      doc.setDrawColor(255, 255, 255);
+      doc.line(14, cursorY, 196, cursorY);
+      cursorY += 8;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Informasi Pertandingan', 14, cursorY);
+      cursorY += 8;
+      doc.autoTable({
+        startY: cursorY,
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, textColor: [15, 23, 42], fillColor: [248, 250, 252], lineColor: [148, 163, 184], lineWidth: 0.2 },
+        headStyles: { fillColor: [37, 99, 235], textColor: [255, 255, 255], fontStyle: 'bold' },
+        body: [['Pemain / Tim A', playerA], ['Pemain / Tim B', playerB], ['Kategori', category], ['Lapangan', courtNumber]],
+        margin: { left: 14, right: 14 }
+      });
+      cursorY = doc.lastAutoTable.finalY + 8;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Hasil Akhir per Game', 14, cursorY);
+      cursorY += 4;
+      doc.autoTable({
+        startY: cursorY,
+        theme: 'grid',
+        head: [['Game', 'Skor Akhir']],
+        body: finalGameRows,
+        styles: { font: 'helvetica', fontSize: 9, textColor: [15, 23, 42] },
+        headStyles: { fillColor: [22, 163, 74], textColor: [255, 255, 255], fontStyle: 'bold' },
+        margin: { left: 14, right: 14 }
+      });
+      cursorY = doc.lastAutoTable.finalY + 8;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.text('Riwayat Poin Demi Poin', 14, cursorY);
+      cursorY += 4;
+      doc.autoTable({
+        startY: cursorY,
+        theme: 'grid',
+        head: [['No', 'Game', 'Skor Setelah Poin', 'Service Over', 'Deuce', 'Interval']],
+        body: historyRows.length > 0 ? historyRows : [['-', '-', '-', '-', '-', '-']],
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 2, textColor: [15, 23, 42] },
+        headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        margin: { left: 14, right: 14 }
+      });
+      const footerY = doc.internal.pageSize.getHeight() - 12;
+      doc.setFontSize(8);
+      doc.setTextColor(210, 214, 220);
+      doc.text('Dihasilkan otomatis dari sistem scoreboard bulutangkis lokal.', 105, footerY, { align: 'center' });
+      const fileName = `${(tournamentName || 'score-sheet').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'score-sheet'}-${matchDate}.pdf`;
+      doc.save(fileName);
+    }
+
+    function teamLabelFromState(state, side) {
+      if (side === 'A') {
+        return [state.playerA1, state.playerA2].filter(Boolean).join(' / ') || state.playerA || '-';
+      }
+      return [state.playerB1, state.playerB2].filter(Boolean).join(' / ') || state.playerB || '-';
+    }
+
+    function emitUpdate(patch) {
+      socket.emit('controller:update', patch);
+      elements.syncLabel.textContent = 'Perubahan dikirim ke server lokal.';
+    }
+
+    function emitPoint(winnerSide) {
+      socket.emit('controller:point', {
+        winnerSide,
+        gameNumber: Number(elements.activeGameLabel.dataset.game || 1)
+      });
+    }
+
+    function renderState(state) {
+      if (!state) return;
+
+      latestState = state;
+      const currentGame = Number(state.activeGame || 1);
+      const currentScore = state[`scoreGame${currentGame}`] || state.scoreGame1 || { a: 0, b: 0 };
+      const serviceSide = String(state.serverSide || '').toUpperCase();
+
+      elements.connectionStatus.textContent = 'Terhubung ke server lokal';
+      elements.activeGameLabel.textContent = `Game ${currentGame}`;
+      elements.activeGameLabel.dataset.game = String(currentGame);
+      elements.serviceLabel.textContent = serviceSide ? `Server ${serviceSide}` : '-';
+      elements.matchResultLabel.textContent = state.matchFinished ? `${state.winnerSide || '-'} menang` : 'Belum selesai';
+
+      elements.tournamentName.value = state.tournamentName || '';
+      elements.category.value = state.category || '';
+      elements.courtNumber.value = state.courtNumber || '';
+      elements.playerA1.value = state.playerA1 || '';
+      elements.playerA2.value = state.playerA2 || '';
+      elements.playerB1.value = state.playerB1 || '';
+      elements.playerB2.value = state.playerB2 || '';
+
+      elements.playerALabel.textContent = teamLabelFromState(state, 'A');
+      elements.playerBLabel.textContent = teamLabelFromState(state, 'B');
+      elements.scoreA.textContent = String(currentScore.a ?? 0);
+      elements.scoreB.textContent = String(currentScore.b ?? 0);
+      elements.serviceBadgeA.classList.toggle('opacity-100', serviceSide === 'A');
+      elements.serviceBadgeA.classList.toggle('opacity-20', serviceSide !== 'A');
+      elements.serviceBadgeB.classList.toggle('opacity-100', serviceSide === 'B');
+      elements.serviceBadgeB.classList.toggle('opacity-20', serviceSide !== 'B');
+      elements.statePreview.textContent = JSON.stringify(state, null, 2);
+      elements.matchMeta.textContent = state.matchFinished ? 'MATCH FINISHED' : (state.gameFinished ? 'GAME FINISHED' : 'LIVE');
+    }
+
+    function syncField(field, value) {
+      emitUpdate({ [field]: value });
+    }
+
+    socket.on('connect', () => {
+      socket.emit('state:request');
+    });
+
+    socket.on('disconnect', () => {
+      elements.connectionStatus.textContent = 'Terputus dari server';
+      elements.matchMeta.textContent = 'DISCONNECTED';
+    });
+
+    socket.on('state:update', renderState);
+
+    elements.tournamentName.addEventListener('input', (event) => syncField('tournamentName', event.target.value));
+    elements.category.addEventListener('change', (event) => syncField('category', event.target.value));
+    elements.courtNumber.addEventListener('input', (event) => syncField('courtNumber', event.target.value));
+    elements.playerA1.addEventListener('input', () => syncField('teamAPlayers', [elements.playerA1.value, elements.playerA2.value]));
+    elements.playerA2.addEventListener('input', () => syncField('teamAPlayers', [elements.playerA1.value, elements.playerA2.value]));
+    elements.playerB1.addEventListener('input', () => syncField('teamBPlayers', [elements.playerB1.value, elements.playerB2.value]));
+    elements.playerB2.addEventListener('input', () => syncField('teamBPlayers', [elements.playerB1.value, elements.playerB2.value]));
+
+    pointButtons.forEach((button) => {
+      button.addEventListener('click', () => emitPoint(button.dataset.point));
+    });
+
+    serviceButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const side = button.dataset.service;
+        emitUpdate({ serverSide: side, receiverSide: side === 'A' ? 'B' : 'A' });
+      });
+    });
+
+    document.getElementById('undoBtn').addEventListener('click', () => {
+      socket.emit('controller:undo');
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      socket.emit('controller:reset');
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', () => {
+      const state = latestState || {};
+      const metadata = {
+        umpire: promptOrDefault('Nama wasit / umpire:', ''),
+        matchDate: promptOrDefault('Tanggal pertandingan (YYYY-MM-DD):', formatDateForPdf())
+      };
+
+      socket.emit('controller:export-pdf', metadata);
+      exportScoreSheetPdf(state, metadata);
+      elements.syncLabel.textContent = 'PDF sedang dibuat.';
+    });
+  </script>
+</body>
+</html>
