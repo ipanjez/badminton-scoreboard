@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Controller — Badminton Scoreboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- jsPDF from node_modules (offline-capable) -->
+  <script src="/vendor/jspdf/jspdf.umd.min.js"></script>
+  <script src="/js/pdf-export.js"></script>
+  <style>
+    body { font-family: 'Arial Black', Arial, sans-serif; overscroll-behavior: none; touch-action: manipulation; }
+    /* Giant point buttons */
+    .btn-point {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 5rem; font-weight: 900; border-radius: 24px; cursor: pointer;
+      transition: transform 0.08s, box-shadow 0.08s;
+      min-height: 130px; user-select: none;
+    }
+    .btn-point:active { transform: scale(0.94); }
+    .btn-plus-L  { background: #3b82f6; color: #fff; box-shadow: 0 6px 24px #3b82f644; }
+    .btn-plus-R  { background: #f97316; color: #fff; box-shadow: 0 6px 24px #f9731644; }
+    .btn-minus   { background: #374151; color: #9ca3af; font-size: 2rem; min-height: 60px; border-radius: 14px; cursor: pointer; transition: transform 0.08s; }
+    .btn-minus:active { transform: scale(0.93); }
+    /* Score display */
+    .score-display {
+      font-size: 6rem; font-weight: 900; text-align: center;
+      border-radius: 20px; line-height: 1; padding: 10px 0;
+      transition: background 0.25s, color 0.25s;
+    }
+    .score-serving   { background: #fbbf24; color: #000; }
+    .score-receiving { background: #1e293b; color: #fff; }
+    /* Serve button */
+    .btn-serve {
+      padding: 10px 0; border-radius: 14px; font-size: 0.85rem; font-weight: 700;
+      cursor: pointer; transition: all 0.15s; letter-spacing: 1px;
+    }
+    .btn-serve-active   { background: #fbbf24; color: #000; }
+    .btn-serve-inactive { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+    /* Action bar buttons */
+    .btn-action {
+      flex: 1; padding: 14px 8px; border-radius: 16px; font-weight: 800;
+      font-size: 0.9rem; cursor: pointer; transition: all 0.12s; text-align: center;
+    }
+    .btn-action:active { transform: scale(0.96); }
+    /* Autocomplete dropdown */
+    .ac-wrap { position: relative; display: flex; gap: 4px; align-items: stretch; }
+    .ac-wrap input { flex: 1; min-width: 0; width: auto; }
+    .ac-btn-all {
+      background: #1e293b; color: #94a3b8; border: 1.5px solid #334155;
+      border-radius: 10px; padding: 0 11px; font-size: 1.1rem; cursor: pointer;
+      flex-shrink: 0; transition: background 0.15s; line-height: 1;
+    }
+    .ac-btn-all:hover { background: #334155; color: #e2e8f0; }
+    .ac-list {
+      position: absolute; z-index: 9999; background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; left: 0; right: 0; max-height: 200px; overflow-y: auto;
+      box-shadow: 0 8px 24px #00000066; top: calc(100% + 4px);
+    }
+    .ac-item {
+      padding: 10px 14px; cursor: pointer; color: #e2e8f0; font-size: 0.9rem;
+      border-radius: 8px; margin: 2px 4px;
+    }
+    .ac-item:hover { background: #334155; }
+    /* Court panel */
+    #court-panel { transition: all 0.2s; }
+    .court-player { cursor: pointer; transition: filter 0.15s; }
+    .court-player:hover { filter: brightness(1.25); }
+    /* Modal */
+    .modal-bg {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      display: flex; align-items: flex-start; justify-content: center;
+      z-index: 1000; overflow-y: auto; padding: 16px;
+    }
+    .modal-bg.hidden { display: none; }
+    /* Notification toast */
+    .toast {
+      position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
+      background: #1e293b; color: #fff; padding: 10px 24px; border-radius: 999px;
+      font-size: 0.9rem; font-weight: 600; z-index: 9999; pointer-events: none;
+      transition: opacity 0.3s; white-space: nowrap;
+    }
+    /* Interval banner */
+    .interval-bar {
+      background: linear-gradient(90deg, #854d0e, #ca8a04, #854d0e);
+      animation: shimmer 2s linear infinite;
+    }
+    @keyframes shimmer { 0%{background-position:-200%} 100%{background-position:200%} }
+    input, select {
+      background: #0f172a; color: #fff; border: 1.5px solid #334155;
+      border-radius: 12px; padding: 10px 14px; font-size: 0.95rem; width: 100%;
+      outline: none; transition: border-color 0.2s;
+    }
+    input:focus, select:focus { border-color: #fbbf24; }
+    select option { background: #0f172a; }
+    label { display: block; color: #94a3b8; font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-white min-h-screen">
+
+<!-- ── Top Navigation Bar ── -->
+<div class="bg-slate-900 border-b border-slate-800 px-4 py-3 sticky top-0 z-50 flex items-center gap-3">
+  <span class="text-2xl">🏸</span>
+  <div class="flex-1 min-w-0">
+    <div class="text-yellow-400 font-black text-sm leading-tight truncate" id="c-tournament">—</div>
+    <div class="text-slate-400 text-xs">
+      <span id="c-cat">—</span> · Court <span id="c-court">—</span> · Game <span id="c-game">1</span>/3
+    </div>
+  </div>
+  <button onclick="openSetup()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-sm font-bold flex-shrink-0">⚙ Setup</button>
+  <button onclick="openHelp()"  class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-sm font-bold flex-shrink-0">❓ Panduan</button>
+  <a href="/tutorial" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-sm font-bold flex-shrink-0">📖 Tutorial</a>
+  <a href="/manage" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-xl text-sm font-bold flex-shrink-0">🔧 Admin</a>
+  <form action="/logout" method="POST" class="flex-shrink-0">
+    <button type="submit" class="bg-slate-800 hover:bg-red-900/50 text-slate-400 hover:text-red-400 px-3 py-2 rounded-xl text-sm font-bold">Keluar</button>
+  </form>
+</div>
+
+<!-- ── Interval Banner ── -->
+<div id="interval-banner" class="hidden interval-bar px-4 py-3 flex items-center justify-between">
+  <span class="text-white font-black text-lg">⏱ INTERVAL</span>
+  <span class="text-yellow-100 font-bold" id="int-score">0 – 0</span>
+  <button onclick="dismissInterval()" class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl font-bold text-sm">Lanjutkan ▶</button>
+</div>
+
+<!-- ── Main Score Area ── -->
+<div class="px-3 py-4">
+  <div class="grid grid-cols-2 gap-3">
+
+    <!-- ── TEAM L ── -->
+    <div class="bg-slate-900 rounded-2xl p-3 flex flex-col gap-3">
+      <!-- Team info -->
+      <div class="flex items-start gap-2">
+        <span class="text-3xl" id="c-flag-L" style="display:none"></span>
+        <div class="flex-1 min-w-0" id="c-hdr-L">
+          <div class="text-blue-300 font-black text-base truncate" id="c-name-L">TIM L</div>
+          <div class="text-slate-400 text-xs truncate" id="c-club-L">—</div>
+        </div>
+      </div>
+
+      <!-- Serve toggle -->
+      <div class="flex gap-1">
+        <button id="serve-btn-L" onclick="setServe('L')" class="btn-serve flex-1">
+          🏸 SERVE L
+        </button>
+        <button onclick="toggleServer('L')" title="Ganti pemain yang servis" class="btn-serve w-12 flex-none bg-slate-700/50 hover:bg-slate-600/50">
+          🔄
+        </button>
+      </div>
+
+      <!-- + Button -->
+      <button class="btn-point btn-plus-L" onclick="addPoint('L')">+</button>
+
+      <!-- Score -->
+      <div class="score-display score-receiving" id="c-score-L">0</div>
+
+      <!-- - Button -->
+      <button class="btn-minus w-full" onclick="sendUndo()" title="Undo poin terakhir">⟵ Koreksi</button>
+    </div>
+
+    <!-- ── TEAM R ── -->
+    <div class="bg-slate-900 rounded-2xl p-3 flex flex-col gap-3">
+      <!-- Team info -->
+      <div class="flex items-start gap-2">
+        <span class="text-3xl" id="c-flag-R" style="display:none"></span>
+        <div class="flex-1 min-w-0" id="c-hdr-R">
+          <div class="text-orange-300 font-black text-base truncate" id="c-name-R">TIM R</div>
+          <div class="text-slate-400 text-xs truncate" id="c-club-R">—</div>
+        </div>
+      </div>
+
+      <!-- Serve toggle -->
+      <div class="flex gap-1">
+        <button id="serve-btn-R" onclick="setServe('R')" class="btn-serve flex-1">
+          🏸 SERVE R
+        </button>
+        <button onclick="toggleServer('R')" title="Ganti pemain yang servis" class="btn-serve w-12 flex-none bg-slate-700/50 hover:bg-slate-600/50">
+          🔄
+        </button>
+      </div>
+
+      <!-- + Button -->
+      <button class="btn-point btn-plus-R" onclick="addPoint('R')">+</button>
+
+      <!-- Score -->
+      <div class="score-display score-receiving" id="c-score-R">0</div>
+
+      <!-- - Button -->
+      <button class="btn-minus w-full" onclick="sendUndo()">⟵ Koreksi</button>
+    </div>
+
+  </div><!-- /grid -->
+
+  <!-- Previous games scores -->
+  <div class="mt-3 bg-slate-900/60 rounded-2xl px-4 py-3">
+    <div class="text-slate-500 text-xs font-bold tracking-wider mb-2">SKOR GAME SEBELUMNYA</div>
+    <div id="c-prev-games" class="flex gap-3 flex-wrap">
+      <span class="text-slate-600 text-sm">—</span>
+    </div>
+  </div>
+
+  <!-- ── Match Over Banner ── -->
+  <div id="match-over-bar" class="hidden mx-3 mt-3 bg-green-900/40 border border-green-700/60 rounded-2xl px-4 py-3 flex items-center justify-between">
+    <div>
+      <span class="text-green-400 font-black text-base">🏆 Match Selesai!</span>
+      <span class="text-green-300 text-sm ml-2" id="match-winner-label"></span>
+    </div>
+    <div class="text-slate-400 text-xs">Klik <strong class="text-white">🔄 Reset</strong> untuk pertandingan baru</div>
+  </div>
+
+  <!-- ── Action Bar ── -->
+  <div class="mt-3 mx-3 flex gap-2">
+    <button id="btn-next-game" onclick="nextGame()" class="btn-action bg-blue-900/70 hover:bg-blue-800 text-blue-200">
+      Game ▶<br><span class="text-xs font-normal opacity-70">Lanjut</span>
+    </button>
+    <button onclick="sendUndo()" class="btn-action bg-amber-900/70 hover:bg-amber-800 text-amber-200">
+      ↩ Undo<br><span class="text-xs font-normal opacity-70">Batalkan</span>
+    </button>
+    <button onclick="exportPDF()" class="btn-action bg-green-900/70 hover:bg-green-800 text-green-200">
+      📄 PDF<br><span class="text-xs font-normal opacity-70">Export</span>
+    </button>
+    <button onclick="confirmReset()" class="btn-action bg-red-900/70 hover:bg-red-800 text-red-200">
+      🔄 Reset<br><span class="text-xs font-normal opacity-70">Mulai Baru</span>
+    </button>
+  </div>
+
+  <!-- ── Display View Configuration ── -->
+  <div class="mt-3 mx-3 bg-slate-900/40 border border-slate-700/50 rounded-xl p-3 flex items-center gap-3">
+    <span class="text-slate-400 text-xs font-bold whitespace-nowrap">📺 UKURAN TV:</span>
+    <input type="range" id="font-size-slider" min="40" max="130" value="84" class="flex-1 accent-blue-500 bg-slate-800 h-2 rounded-lg cursor-pointer" onchange="changeFontSize(this.value)">
+    <span class="text-slate-300 text-sm font-bold w-10 text-center" id="font-size-val">84px</span>
+    <button onclick="changeFontSize(84)" class="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs text-slate-300">Reset</button>
+  </div>
+
+  <!-- ── Court Visualization ── -->
+  <div class="mt-3 mx-3">
+    <button onclick="toggleCourt()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-bold py-2 rounded-xl border border-slate-700 flex items-center justify-center gap-2">
+      <span>🏸 Tampilan Lapangan</span><span id="court-toggle-icon">▾</span>
+    </button>
+    <div id="court-panel" class="mt-2 hidden">
+      <div class="bg-slate-900/60 rounded-xl p-2">
+        <p class="text-slate-500 text-xs text-center mb-2">Ketuk pemain untuk mengubah server · Posisi otomatis sesuai skor BWF</p>
+        <svg id="court-svg" viewBox="0 0 600 310" xmlns="http://www.w3.org/2000/svg" style="width:100%;border-radius:6px;display:block">
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" fill="#FFD700"/>
+            </marker>
+          </defs>
+          <!-- Court background -->
+          <rect width="600" height="310" fill="#1a5c3a" rx="6"/>
+          <!-- Shadow bands -->
+          <rect x="20" y="15" width="280" height="280" fill="rgba(0,0,0,0.05)"/>
+          <!-- Doubles outer boundary -->
+          <rect x="20" y="15" width="560" height="280" fill="none" stroke="white" stroke-width="2.5"/>
+          <!-- Net -->
+          <rect x="296" y="15" width="8" height="280" fill="#111"/>
+          <line x1="300" y1="15" x2="300" y2="295" stroke="white" stroke-width="2"/>
+          <circle cx="300" cy="15" r="4" fill="white"/>
+          <circle cx="300" cy="295" r="4" fill="white"/>
+          <!-- Short service lines -->
+          <line x1="217" y1="15" x2="217" y2="295" stroke="rgba(255,255,255,0.75)" stroke-width="1.5"/>
+          <line x1="383" y1="15" x2="383" y2="295" stroke="rgba(255,255,255,0.75)" stroke-width="1.5"/>
+          <!-- Center service lines (horizontal) -->
+          <line x1="20" y1="155" x2="217" y2="155" stroke="rgba(255,255,255,0.75)" stroke-width="1.5"/>
+          <line x1="383" y1="155" x2="580" y2="155" stroke="rgba(255,255,255,0.75)" stroke-width="1.5"/>
+          <!-- Doubles long service lines -->
+          <line x1="52" y1="15" x2="52" y2="295" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+          <line x1="548" y1="15" x2="548" y2="295" stroke="rgba(255,255,255,0.45)" stroke-width="1"/>
+          <!-- Singles sidelines -->
+          <line x1="20" y1="36" x2="580" y2="36" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+          <line x1="20" y1="274" x2="580" y2="274" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
+          <!-- Team labels -->
+          <text x="160" y="11" fill="rgba(255,140,80,0.9)" text-anchor="middle" font-size="10" font-family="Arial Black" letter-spacing="2">TIM L</text>
+          <text x="440" y="11" fill="rgba(80,255,120,0.9)" text-anchor="middle" font-size="10" font-family="Arial Black" letter-spacing="2">TIM R</text>
+          <!-- Service court shading (server side, updated by JS) -->
+          <rect id="court-srv-box" x="0" y="0" width="0" height="0" fill="rgba(255,215,0,0.12)" rx="0"/>
+          <rect id="court-rcv-box" x="0" y="0" width="0" height="0" fill="rgba(255,255,255,0.06)" rx="0"/>
+          <!-- Serve arrow -->
+          <line id="court-arrow-line" x1="0" y1="0" x2="0" y2="0" stroke="#FFD700" stroke-width="2.5" stroke-dasharray="10,5" marker-end="url(#arrowhead)" opacity="0"/>
+          <!-- Players: Team L -->
+          <g class="court-player" id="cp-L-1" onclick="courtClickPlayer('L',1)">
+            <circle id="cp-L-1-bg" cx="0" cy="0" r="23" fill="#FF4400"/>
+            <circle id="cp-L-1-ring" cx="0" cy="0" r="23" fill="none" stroke="#FFD700" stroke-width="4" opacity="0"/>
+            <text id="cp-L-1-lbl" x="0" y="0" text-anchor="middle" dy="4" fill="white" font-size="10" font-weight="900" font-family="Arial">P1</text>
+          </g>
+          <g class="court-player" id="cp-L-2" onclick="courtClickPlayer('L',2)" style="display:none">
+            <circle id="cp-L-2-bg" cx="0" cy="0" r="23" fill="#FF4400"/>
+            <circle id="cp-L-2-ring" cx="0" cy="0" r="23" fill="none" stroke="#FFD700" stroke-width="4" opacity="0"/>
+            <text id="cp-L-2-lbl" x="0" y="0" text-anchor="middle" dy="4" fill="white" font-size="10" font-weight="900" font-family="Arial">P2</text>
+          </g>
+          <!-- Players: Team R -->
+          <g class="court-player" id="cp-R-1" onclick="courtClickPlayer('R',1)">
+            <circle id="cp-R-1-bg" cx="0" cy="0" r="23" fill="#00CC44"/>
+            <circle id="cp-R-1-ring" cx="0" cy="0" r="23" fill="none" stroke="#FFD700" stroke-width="4" opacity="0"/>
+            <text id="cp-R-1-lbl" x="0" y="0" text-anchor="middle" dy="4" fill="#000" font-size="10" font-weight="900" font-family="Arial">P1</text>
+          </g>
+          <g class="court-player" id="cp-R-2" onclick="courtClickPlayer('R',2)" style="display:none">
+            <circle id="cp-R-2-bg" cx="0" cy="0" r="23" fill="#00CC44"/>
+            <circle id="cp-R-2-ring" cx="0" cy="0" r="23" fill="none" stroke="#FFD700" stroke-width="4" opacity="0"/>
+            <text id="cp-R-2-lbl" x="0" y="0" text-anchor="middle" dy="4" fill="#000" font-size="10" font-weight="900" font-family="Arial">P2</text>
+          </g>
+          <!-- Shuttle emoji at server -->
+          <text id="court-shuttle" x="0" y="0" font-size="18" text-anchor="middle" opacity="0">🏸</text>
+          <!-- Score display on court -->
+          <text id="court-score-L" x="80" y="308" text-anchor="middle" fill="rgba(255,140,80,0.85)" font-size="13" font-weight="900" font-family="Arial">0</text>
+          <text x="160" y="308" text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="11" font-family="Arial">–</text>
+          <text id="court-score-R" x="520" y="308" text-anchor="middle" fill="rgba(80,255,120,0.85)" font-size="13" font-weight="900" font-family="Arial">0</text>
+        </svg>
+        <div id="court-info" class="text-center text-xs text-slate-500 mt-1"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /px-3 -->
+
+<!-- ── SETUP MODAL ── -->
+<div id="setup-modal" class="modal-bg hidden" onclick="closeSetupOutside(event)">
+  <div class="bg-slate-900 rounded-3xl w-full max-w-2xl border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+      <h2 class="text-white font-black text-xl">⚙ Setup Pertandingan</h2>
+      <button onclick="closeSetup()" class="text-slate-400 hover:text-white text-2xl leading-none">×</button>
+    </div>
+    <div class="px-6 py-4 space-y-4 overflow-y-auto" style="max-height:80vh">
+
+      <!-- Tournament & Category -->
+      <div class="form-row">
+        <div>
+          <label>NAMA TURNAMEN</label>
+          <input id="s-tournament" type="text" placeholder="Pupuk Kaltim Open 2025" maxlength="100">
+        </div>
+        <div>
+          <label>KATEGORI</label>
+          <select id="s-category">
+            <option value="MS">MS – Men's Singles</option>
+            <option value="WS">WS – Women's Singles</option>
+            <option value="MD">MD – Men's Doubles</option>
+            <option value="WD">WD – Women's Doubles</option>
+            <option value="XD">XD – Mixed Doubles</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div>
+          <label>NOMOR LAPANGAN (COURT)</label>
+          <input id="s-court" type="text" placeholder="1" maxlength="10">
+        </div>
+        <div>
+          <label>NOMOR MATCH</label>
+          <input id="s-matchno" type="text" placeholder="QF-3" maxlength="20">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div>
+          <label>WASIT (UMPIRE)</label>
+          <div class="ac-wrap">
+            <input id="s-umpire" type="text" placeholder="Nama Wasit" maxlength="100" autocomplete="off"
+              oninput="acSearch(this,'umpires','ac-umpire')" onblur="acHide('ac-umpire',300)">
+            <button type="button" onmousedown="acShowAll('s-umpire','umpires','ac-umpire')" class="ac-btn-all" tabindex="-1">&#9660;</button>
+            <div id="ac-umpire" class="ac-list hidden"></div>
+          </div>
+        </div>
+        <div>
+          <label>SERVICE JUDGE</label>
+          <div class="ac-wrap">
+            <input id="s-sj" type="text" placeholder="Nama Service Judge" maxlength="100" autocomplete="off"
+              oninput="acSearch(this,'umpires','ac-sj')" onblur="acHide('ac-sj',300)">
+            <button type="button" onmousedown="acShowAll('s-sj','umpires','ac-sj')" class="ac-btn-all" tabindex="-1">&#9660;</button>
+            <div id="ac-sj" class="ac-list hidden"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-px bg-slate-700"></div>
+
+      <!-- Team L -->
+      <div>
+        <div class="text-blue-400 font-black text-sm mb-3 tracking-wider">TIM L (KIRI)</div>
+        <div class="form-row mb-3">
+          <div>
+            <label>FLAG / EMOJI BENDERA</label>
+            <input id="s-flag-L" type="text" placeholder="🇮🇩 opsional" maxlength="8" value="">
+          </div>
+          <div>
+            <label>NAMA KLUB / PB</label>
+            <div class="ac-wrap">
+              <input id="s-club-L" type="text" placeholder="PB Djarum" maxlength="100" autocomplete="off"
+                oninput="acSearch(this,'clubs','ac-club-L')" onblur="acHide('ac-club-L',300)">
+              <button type="button" onmousedown="acShowAll('s-club-L','clubs','ac-club-L')" class="ac-btn-all" tabindex="-1">&#9660;</button>
+              <div id="ac-club-L" class="ac-list hidden"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label>PEMAIN 1</label>
+            <div class="ac-wrap">
+              <input id="s-p1-L" type="text" placeholder="Nama Pemain 1" maxlength="100" autocomplete="off"
+                oninput="acSearch(this,'players','ac-p1-L')" onblur="acHide('ac-p1-L',300)">
+              <button type="button" onmousedown="acShowAll('s-p1-L','players','ac-p1-L')" class="ac-btn-all" tabindex="-1">&#9660;</button>
+              <div id="ac-p1-L" class="ac-list hidden"></div>
+            </div>
+          </div>
+          <div>
+            <label>PEMAIN 2 (ganda)</label>
+            <div class="ac-wrap">
+              <input id="s-p2-L" type="text" placeholder="Kosong jika tunggal" maxlength="100" autocomplete="off"
+                oninput="acSearch(this,'players','ac-p2-L')" onblur="acHide('ac-p2-L',300)">
+              <button type="button" onmousedown="acShowAll('s-p2-L','players','ac-p2-L')" class="ac-btn-all" tabindex="-1">&#9660;</button>
+              <div id="ac-p2-L" class="ac-list hidden"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="h-px bg-slate-700"></div>
+
+      <!-- Team R -->
+      <div>
+        <div class="text-orange-400 font-black text-sm mb-3 tracking-wider">TIM R (KANAN)</div>
+        <div class="form-row mb-3">
+          <div>
+            <label>FLAG / EMOJI BENDERA</label>
+            <input id="s-flag-R" type="text" placeholder="🇮🇩 (opsional)" maxlength="8" value="">
+          </div>
+          <div>
+            <label>NAMA KLUB / PB</label>
+            <div class="ac-wrap">
+              <input id="s-club-R" type="text" placeholder="PB Jaya Raya" maxlength="100" autocomplete="off"
+                oninput="acSearch(this,'clubs','ac-club-R')" onblur="acHide('ac-club-R',300)">
+              <button type="button" onmousedown="acShowAll('s-club-R','clubs','ac-club-R')" class="ac-btn-all" tabindex="-1">&#9660;</button>
+              <div id="ac-club-R" class="ac-list hidden"></div>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div>
+            <label>PEMAIN 1</label>
+            <div class="ac-wrap">
+              <input id="s-p1-R" type="text" placeholder="Nama Pemain 1" maxlength="100" autocomplete="off"
+                oninput="acSearch(this,'players','ac-p1-R')" onblur="acHide('ac-p1-R',300)">
+              <button type="button" onmousedown="acShowAll('s-p1-R','players','ac-p1-R')" class="ac-btn-all" tabindex="-1">&#9660;</button>
+              <div id="ac-p1-R" class="ac-list hidden"></div>
+            </div>
+          </div>
+          <div>
+            <label>PEMAIN 2 (ganda)</label>
+            <div class="ac-wrap">
+              <input id="s-p2-R" type="text" placeholder="Kosong jika tunggal" maxlength="100" autocomplete="off"
+                oninput="acSearch(this,'players','ac-p2-R')" onblur="acHide('ac-p2-R',300)">
+              <button type="button" onmousedown="acShowAll('s-p2-R','players','ac-p2-R')" class="ac-btn-all" tabindex="-1">&#9660;</button>
+              <div id="ac-p2-R" class="ac-list hidden"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Initial Serve -->
+      <div>
+        <label>SERVIS AWAL</label>
+        <div class="flex gap-3 mt-1">
+          <button type="button" id="init-serve-L" onclick="setInitServe('L')"
+            class="flex-1 py-3 rounded-xl font-bold text-sm bg-blue-900/50 text-blue-300 border-2 border-transparent transition-all">
+            TIM L Serve
+          </button>
+          <button type="button" id="init-serve-R" onclick="setInitServe('R')"
+            class="flex-1 py-3 rounded-xl font-bold text-sm bg-orange-900/50 text-orange-300 border-2 border-transparent transition-all">
+            TIM R Serve
+          </button>
+        </div>
+      </div>
+
+    </div>
+    <!-- Modal footer -->
+    <div class="px-6 py-4 border-t border-slate-700 flex gap-3">
+      <button onclick="closeSetup()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold">Batal</button>
+      <button onclick="saveSetup()" class="flex-2 basis-2/3 bg-yellow-400 hover:bg-yellow-300 text-slate-900 py-3 rounded-xl font-black">✓ Simpan & Terapkan</button>
+    </div>
+  </div>
+</div><!-- /setup-modal -->
+
+<!-- ── RESET CONFIRM MODAL ── -->
+<div id="reset-modal" class="modal-bg hidden" onclick="closeResetModal()">
+  <div class="bg-slate-900 rounded-3xl w-full max-w-sm border border-red-900 shadow-2xl mt-20" onclick="event.stopPropagation()">
+    <div class="p-6 text-center">
+      <div class="text-5xl mb-3">⚠️</div>
+      <h3 class="text-white font-black text-xl mb-2">Reset Pertandingan?</h3>
+      <p class="text-slate-400 text-sm mb-6">Semua skor dan riwayat akan dihapus. Tindakan ini tidak dapat dibatalkan.</p>
+      <div class="flex gap-3">
+        <button onclick="closeResetModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold">Batal</button>
+        <button onclick="doReset()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-black">Reset!</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div id="toast" class="toast hidden"></div>
+
+<!-- ── HELP / TUTORIAL MODAL ── -->
+<div id="help-modal" class="modal-bg hidden" onclick="closeHelp()">
+  <div class="bg-slate-900 rounded-3xl w-full max-w-2xl border border-slate-700 shadow-2xl" onclick="event.stopPropagation()">
+    <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+      <h2 class="text-white font-black text-xl">❓ Panduan Wasit / Operator</h2>
+      <button onclick="closeHelp()" class="text-slate-400 hover:text-white text-2xl leading-none">×</button>
+    </div>
+    <div class="px-6 py-4 overflow-y-auto space-y-4" style="max-height:80vh">
+
+      <div class="grid grid-cols-2 gap-3">
+
+        <div class="bg-slate-800 rounded-2xl p-4">
+          <div class="text-yellow-400 font-black mb-2">⚙ SETUP PERTANDINGAN</div>
+          <p class="text-slate-300 text-sm">Klik tombol <strong>⚙ Setup</strong> di atas kanan. Isi nama turnamen, kategori, lapangan, nama pemain, klub, wasit. Pilih siapa yang servis pertama. Klik <strong>Simpan &amp; Terapkan</strong>.</p>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl p-4">
+          <div class="text-blue-400 font-black mb-2">� MENAMBAH POIN</div>
+          <p class="text-slate-300 text-sm">Tekan tombol <strong class="text-4xl">+</strong> besar sesuai tim yang memenangkan reli. Perpindahan servis (Service Over) terjadi <em>otomatis</em>.</p>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl p-4">
+          <div class="text-amber-400 font-black mb-2">↩ KOREKSI / UNDO</div>
+          <p class="text-slate-300 text-sm">Tekan tombol <strong>⟵ Koreksi</strong> atau <strong>↩ Undo</strong> untuk membatalkan poin terakhir. Bisa dilakukan berkali-kali.</p>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl p-4">
+          <div class="text-orange-400 font-black mb-2">🏸 SERVIS MANUAL</div>
+          <p class="text-slate-300 text-sm">Tekan tombol <strong>Jadikan Serve</strong> untuk mengatur servis secara manual jika terjadi kesalahan. Biasanya tidak perlu — servis berpindah otomatis.</p>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl p-4">
+          <div class="text-yellow-300 font-black mb-2">⏱ INTERVAL (Skor 11)</div>
+          <p class="text-slate-300 text-sm">Banner kuning <strong>INTERVAL</strong> muncul otomatis saat skor 11 pertama kali tercapai. Istirahat 60 detik, lalu klik <strong>Lanjutkan ▶</strong>.</p>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl p-4">
+          <div class="text-blue-300 font-black mb-2">▶ PINDAH GAME</div>
+          <p class="text-slate-300 text-sm">Setelah satu game selesai, klik <strong>Game ▶ Lanjut</strong>. Ganti servis awal game baru secara manual dengan tombol Serve jika perlu.</p>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl p-4">
+          <div class="text-green-400 font-black mb-2">📄 EXPORT PDF</div>
+          <p class="text-slate-300 text-sm">Klik <strong>📄 PDF</strong> kapan saja untuk mengunduh score sheet resmi format BWF. PDF berisi riwayat skor lengkap, lingkaran merah di poin 11 &amp; poin kemenangan, dan kolom tanda tangan wasit.</p>
+        </div>
+
+        <div class="bg-slate-800 rounded-2xl p-4">
+          <div class="text-red-400 font-black mb-2">🔄 RESET MATCH</div>
+          <p class="text-slate-300 text-sm">Klik <strong>🔄 Reset</strong> untuk memulai pertandingan baru. Semua skor &amp; riwayat akan dihapus. Muncul konfirmasi sebelum dieksekusi.</p>
+        </div>
+
+      </div>
+
+      <div class="bg-yellow-900/30 border border-yellow-700/50 rounded-2xl p-4 text-sm text-yellow-200">
+        <strong>💡 Tips:</strong> Jika tampilan TV tidak update, minta penonton/operator TV untuk me-refresh browser (<strong>F5</strong> atau <strong>Ctrl+R</strong>). Pastikan semua perangkat terhubung ke Wi-Fi yang sama.
+      </div>
+
+      <div class="flex gap-3 pt-2">
+        <button onclick="printOperatorGuide()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white py-3 rounded-xl font-bold text-center text-sm">📰 Cetak Panduan Operator</button>
+        <button onclick="closeHelp()" class="flex-1 bg-blue-800 hover:bg-blue-700 text-white py-3 rounded-xl font-bold">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  // ───────────────────────────────────────────
+  //  State & socket
+  // ───────────────────────────────────────────
+  let currentState  = null;
+  let dbData        = { players: [], clubs: [], umpires: [] };
+  let initServeSide = 'L';
+
+  const socket = io();
+  socket.on('state_update', s => { currentState = s; renderController(s); });
+
+  // Fetch initial DB
+  fetch('/api/db').then(r => r.json()).then(d => { dbData = d; });
+
+  // ───────────────────────────────────────────
+  //  Render
+  // ───────────────────────────────────────────
+  function $id(id) { return document.getElementById(id); }
+
+  function teamName(t) {
+    return (t.player2 ? `${t.player1} / ${t.player2}` : t.player1) || '—';
+  }
+
+  function renderController(s) {
+    $id('c-tournament').textContent = s.tournament || '— Nama Turnamen —';
+    $id('c-cat').textContent        = s.category   || '—';
+    $id('c-court').textContent      = s.court      || '—';
+    $id('c-game').textContent       = s.activeGame;
+
+    const gk = `game${s.activeGame}`;
+    const sc = s.scores[gk];
+
+    // Sync UI with current font size preference from server
+    if (s.displayNameFontSize) {
+      $id('font-size-slider').value = s.displayNameFontSize;
+      $id('font-size-val').textContent = s.displayNameFontSize + 'px';
+    }
+
+    ['L','R'].forEach(side => {
+      const t = s.teams[side];
+      const headerContainer = $id(`c-hdr-${side}`);
+      const isServing = s.serverSide === side;
+      
+      let activeServerIndex = s.serverP2 && s.serverP2[side] ? 2 : 1;
+      if (!t.player2) activeServerIndex = 1;
+
+      $id(`c-flag-${side}`).textContent  = t.flag || '';
+      $id(`c-flag-${side}`).style.display = t.flag ? '' : 'none';
+
+      // Update names rendering
+      let displayNameHtml = ``;
+      if (t.player1) {
+         let bgClass = (isServing && activeServerIndex === 1) ? 'bg-white/25 rounded px-1' : '';
+         displayNameHtml += `<div class="truncate ${side === 'L' ? 'text-blue-300' : 'text-orange-300'} font-black text-base ${bgClass}">${t.player1}</div>`;
+      } else {
+         displayNameHtml += `<div class="truncate ${side === 'L' ? 'text-blue-300' : 'text-orange-300'} font-black text-base">TIM ${side}</div>`;
+      }
+      
+      if (t.player2) {
+         let bgClass = (isServing && activeServerIndex === 2) ? 'bg-white/25 rounded px-1' : '';
+         displayNameHtml += `<div class="truncate ${side === 'L' ? 'text-blue-300' : 'text-orange-300'} font-black text-base ${bgClass}">${t.player2}</div>`;
+      }
+      
+      $id(`c-name-${side}`).innerHTML = displayNameHtml;
+      
+      $id(`c-club-${side}`).textContent = t.club    || '';
+
+      $id(`c-score-${side}`).textContent = sc[side];
+      $id(`c-score-${side}`).className = `score-display ${isServing ? 'score-serving' : 'score-receiving'}`;
+
+      const sBtn = $id(`serve-btn-${side}`);
+      sBtn.className = `btn-serve flex-1 ${isServing ? 'btn-serve-active' : 'btn-serve-inactive'}`;
+      sBtn.textContent = isServing ? `🏸 SERVE ${side} ✓` : `Jadikan Serve ${side}`;
+    });
+
+    // Previous games
+    const prev = $id('c-prev-games');
+    prev.innerHTML = '';
+    let hasPrev = false;
+    for (let g = 1; g <= 3; g++) {
+      const gsc = s.scores[`game${g}`];
+      const done = g < s.activeGame || (gsc.L > 0 || gsc.R > 0);
+      if (done) {
+        hasPrev = true;
+        const isCur = g === s.activeGame;
+        prev.innerHTML += `
+          <span class="text-sm font-bold px-3 py-1 rounded-xl
+            ${isCur ? 'bg-slate-700 text-white' : 'bg-slate-800 text-slate-400'}">
+            G${g}: ${gsc.L}–${gsc.R}
+          </span>`;
+      }
+    }
+    if (!hasPrev) prev.innerHTML = '<span class="text-slate-600 text-sm">Belum ada data</span>';
+    // ── Game ▶ button state ──
+    const btnNext = $id('btn-next-game');
+    const canNext = !s.isMatchOver && s.activeGame < 3;
+    if (btnNext) {
+      btnNext.disabled = !canNext;
+      btnNext.style.opacity  = canNext ? '1' : '0.35';
+      btnNext.style.cursor   = canNext ? 'pointer' : 'not-allowed';
+      btnNext.title = s.isMatchOver
+        ? 'Match sudah selesai — klik Reset untuk pertandingan baru'
+        : s.activeGame >= 3
+          ? 'Sudah Game 3 (game terakhir)'
+          : `Lanjut ke Game ${s.activeGame + 1}`;
+    }
+
+    // ── Match Over banner ──
+    const matchBar = $id('match-over-bar');
+    if (s.isMatchOver && s.winner) {
+      $id('match-winner-label').textContent =
+        `${teamName(s.teams[s.winner])} menang ${s.gamesWon.L}–0${s.gamesWon.R}`;
+      matchBar.classList.remove('hidden');
+    } else {
+      matchBar.classList.add('hidden');
+    }
+    // Interval banner
+    if (s.isInterval && !s.isMatchOver) {
+      const gsc = s.scores[gk];
+      $id('int-score').textContent = `${gsc.L} – ${gsc.R}`;
+      $id('interval-banner').classList.remove('hidden');
+    } else {
+      $id('interval-banner').classList.add('hidden');
+    }
+
+    // Court visualization
+    updateCourtSVG(s);
+
+    // Match over notification
+    if (s.isMatchOver && s.winner) {
+      toast(`🏆 ${teamName(s.teams[s.winner])} MENANG! ${s.gamesWon.L}–${s.gamesWon.R}`, 6000);
+    }
+  }
+
+  // ───────────────────────────────────────────
+  //  API helpers
+  // ───────────────────────────────────────────
+  async function api(path, body) {
+    try {
+      const r = await fetch(path, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body)
+      });
+      const ct = r.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        // Session expired — server redirected to login page
+        window.location.href = '/login';
+        return { ok: false };
+      }
+      return await r.json();
+    } catch (e) {
+      toast('⚠ Koneksi gagal: ' + e.message, 3000);
+      return { ok: false };
+    }
+  }
+
+  // ───────────────────────────────────────────
+  //  Score Actions
+  // ───────────────────────────────────────────
+  async function addPoint(side) {
+    if (!currentState) return;
+    if (currentState.isMatchOver) { toast('⛔ Match sudah selesai', 2000); return; }
+    const r = await api('/api/point', { side });
+    if (!r.ok) toast('⚠ ' + (r.msg || 'Gagal'), 2000);
+  }
+
+  async function sendUndo() {
+    const r = await api('/api/undo', {});
+    if (!r.ok) toast('⚠ ' + (r.msg || 'Tidak ada riwayat'), 2000);
+    else toast('↩ Poin dibatalkan', 1500);
+  }
+
+  async function setServe(side) {
+    await api('/api/serve', { side });
+  }
+
+  async function toggleServer(side) {
+    if (!currentState) return;
+    await api('/api/toggle-server', { side });
+  }
+
+  async function dismissInterval() {
+    await api('/api/dismiss-interval', {});
+  }
+
+  async function nextGame() {
+    if (!currentState) return;
+    if (currentState.isMatchOver) {
+      toast('⛔ Match sudah selesai — gunakan 🔄 Reset untuk pertandingan baru', 3000);
+      return;
+    }
+    if (currentState.activeGame >= 3) {
+      toast('⛔ Sudah Game 3 (game terakhir)', 2000);
+      return;
+    }
+    const nextGameNum = (currentState.activeGame || 0) + 1;
+    const r = await api('/api/next-game', {});
+    if (r.ok) toast(`▶ Lanjut ke Game ${nextGameNum}`, 2000);
+  }
+
+  async function changeFontSize(val) {
+    $id('font-size-slider').value = val;
+    $id('font-size-val').textContent = val + 'px';
+    await api('/api/config/display-font', { size: val });
+  }
+
+  function printOperatorGuide() {
+    const s = currentState;
+    const tn = s?.tournament || 'Badminton Scoreboard';
+    const date = new Date().toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+    const win = window.open('', '_blank', 'width=750,height=900');
+    win.document.write(`<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8">
+<title>Panduan Operator — ${tn}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 12px; color: #000; padding: 16mm 14mm; background: #fff; }
+  h1 { font-size: 18px; font-weight: 900; margin-bottom: 2px; }
+  .sub { font-size: 11px; color: #555; margin-bottom: 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .box { border: 1.5px solid #333; border-radius: 6px; padding: 8px 10px; }
+  .box h2 { font-size: 12px; font-weight: 900; text-transform: uppercase; border-bottom: 1px solid #999; padding-bottom: 4px; margin-bottom: 6px; letter-spacing: 0.5px; }
+  .box p, .box li { font-size: 11px; line-height: 1.55; margin-bottom: 3px; }
+  .box ul { padding-left: 14px; }
+  .key { display: inline-block; background: #eee; border: 1px solid #aaa; border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 10px; }
+  .warn { background: #fff3cd; border-color: #f0ad4e; }
+  .tip  { background: #e8f5e9; border-color: #4caf50; }
+  hr { border: none; border-top: 1px dashed #ccc; margin: 10px 0; }
+  .footer { text-align: center; font-size: 10px; color: #888; margin-top: 16px; border-top: 1px solid #ddd; padding-top: 8px; }
+  @media print { body { padding: 10mm 8mm; } }
+</style></head><body>
+<h1>🏸 Panduan Operator / Wasit</h1>
+<div class="sub">${tn} &nbsp;•&nbsp; ${date} &nbsp;•&nbsp; Cetak & simpan di meja wasit</div>
+<hr>
+<div class="grid">
+  <div class="box">
+    <h2>⚙️ Setup Pertandingan</h2>
+    <ul>
+      <li>Klik <b>Setup</b> di pojok kanan atas.</li>
+      <li>Isi nama turnamen, kategori, lapangan, nama pemain, klub, wasit.</li>
+      <li>Pilih siapa yang servis pertama.</li>
+      <li>Klik <b>✓ Simpan &amp; Terapkan</b>.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>➕ Menambah Poin</h2>
+    <ul>
+      <li>Tekan tombol <b>+</b> besar sesuai tim yang menang reli.</li>
+      <li>Servis berpindah otomatis (Service Over).</li>
+      <li>Skor dan servis langsung tampil di TV.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>↩ Koreksi / Undo</h2>
+    <ul>
+      <li>Tekan <b>← Koreksi</b> di bawah skor tim mana pun,</li>
+      <li>atau tekan <b>↩ Undo</b> di baris tombol bawah.</li>
+      <li>Bisa diulang beberapa kali.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>🏸 Servis Manual</h2>
+    <ul>
+      <li>Jika servis salah: tekan <b>Jadikan Serve L/R</b>.</li>
+      <li>Ganda: tekan <b>🔄</b> untuk ganti pemain server.</li>
+      <li>Atau ketuk lingkaran pemain di tampilan Lapangan.</li>
+    </ul>
+  </div>
+  <div class="box warn">
+    <h2>⏱ Interval (Skor 11)</h2>
+    <ul>
+      <li>Banner kuning muncul otomatis di skor <b>11</b>.</li>
+      <li>Istirahat 60 detik.</li>
+      <li>Klik <b>Lanjutkan ▶</b> untuk melanjutkan.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>▶ Pindah Game</h2>
+    <ul>
+      <li>Setelah satu game selesai, klik <b>Game ▶ Lanjut</b>.</li>
+      <li>Atur servis awal game baru jika perlu.</li>
+      <li>Skor game lama tersimpan otomatis.</li>
+    </ul>
+  </div>
+  <div class="box">
+    <h2>🏆 Match Selesai</h2>
+    <ul>
+      <li>Banner hijau &ldquo;Match Selesai&rdquo; muncul otomatis.</li>
+      <li>Export PDF jika diperlukan: klik <b>📄 PDF</b>.</li>
+      <li>Klik <b>🔄 Reset</b> untuk pertandingan berikutnya.</li>
+    </ul>
+  </div>
+  <div class="box tip">
+    <h2>💡 Tips Penting</h2>
+    <ul>
+      <li>Semua perangkat harus di Wi-Fi yang <b>sama</b>.</li>
+      <li>Jika TV tidak update: tekan <span class="key">F5</span> di browser TV.</li>
+      <li>Jika error: refresh Controller, login ulang jika perlu.</li>
+      <li>Ukuran teks TV: slider <b>📺 Ukuran TV</b> di bawah controller.</li>
+    </ul>
+  </div>
+</div>
+<table style="width:100%;border-collapse:collapse;font-size:11px">
+  <thead><tr style="background:#eee">
+    <th style="border:1px solid #ccc;padding:5px 8px;text-align:left">Game</th>
+    <th style="border:1px solid #ccc;padding:5px 8px">Skor L</th>
+    <th style="border:1px solid #ccc;padding:5px 8px">Skor R</th>
+    <th style="border:1px solid #ccc;padding:5px 8px;text-align:left">Pemenang Game</th>
+    <th style="border:1px solid #ccc;padding:5px 8px;text-align:left">Catatan</th>
+  </tr></thead>
+  <tbody>
+    <tr><td style="border:1px solid #ccc;padding:6px 8px">Game 1</td><td style="border:1px solid #ccc;padding:6px 8px;text-align:center">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px;text-align:center">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px">&nbsp;</td></tr>
+    <tr><td style="border:1px solid #ccc;padding:6px 8px">Game 2</td><td style="border:1px solid #ccc;padding:6px 8px;text-align:center">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px;text-align:center">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px">&nbsp;</td></tr>
+    <tr><td style="border:1px solid #ccc;padding:6px 8px">Game 3</td><td style="border:1px solid #ccc;padding:6px 8px;text-align:center">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px;text-align:center">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px">&nbsp;</td><td style="border:1px solid #ccc;padding:6px 8px">&nbsp;</td></tr>
+  </tbody>
+</table>
+<div class="footer">🏸 Badminton Scoreboard — localhost:3000 &nbsp;•&nbsp; Controller: /controller &nbsp;•&nbsp; TV Display: /display &nbsp;•&nbsp; Viewer: /viewer</div>
+</body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 400);
+  }
+
+  // ───────────────────────────────────────────
+  //  Reset
+  // ───────────────────────────────────────────
+  function confirmReset() { $id('reset-modal').classList.remove('hidden'); }
+  function closeResetModal() { $id('reset-modal').classList.add('hidden'); }
+
+  // Help modal
+  function openHelp()  { $id('help-modal').classList.remove('hidden'); }
+  function closeHelp() { $id('help-modal').classList.add('hidden'); }
+
+  // Help modal
+  function openHelp()  { $id('help-modal').classList.remove('hidden'); }
+  function closeHelp() { $id('help-modal').classList.add('hidden'); }
+  async function doReset() {
+    closeResetModal();
+    await api('/api/reset', {});
+    toast('🔄 Match direset', 2000);
+  }
+
+  // ───────────────────────────────────────────
+  //  PDF Export
+  // ───────────────────────────────────────────
+  function exportPDF() {
+    if (!currentState) { toast('⚠ Belum ada data', 2000); return; }
+    try {
+      generateScoreSheet(currentState);
+      toast('✅ PDF berhasil dibuat!', 3000);
+    } catch (e) {
+      console.error(e);
+      toast('⚠ Gagal buat PDF: ' + e.message, 4000);
+    }
+  }
+
+  // ───────────────────────────────────────────
+  //  Setup Modal
+  // ───────────────────────────────────────────
+  function openSetup() {
+    // Pre-fill from current state
+    if (currentState) {
+      const s = currentState;
+      $id('s-tournament').value = s.tournament   || '';
+      $id('s-category').value   = s.category     || 'MS';
+      $id('s-court').value      = s.court        || '';
+      $id('s-matchno').value    = s.matchNo      || '';
+      $id('s-umpire').value     = s.umpire       || '';
+      $id('s-sj').value         = s.serviceJudge || '';
+      ['L','R'].forEach(side => {
+        $id(`s-flag-${side}`).value  = s.teams[side].flag    || '';
+        $id(`s-p1-${side}`).value    = s.teams[side].player1 || '';
+        $id(`s-p2-${side}`).value    = s.teams[side].player2 || '';
+        $id(`s-club-${side}`).value  = s.teams[side].club    || '';
+      });
+      initServeSide = s.serverSide || 'L';
+      highlightInitServe(initServeSide);
+    }
+    $id('setup-modal').classList.remove('hidden');
+  }
+
+  function closeSetup() { $id('setup-modal').classList.add('hidden'); }
+  function closeSetupOutside(e) {
+    if (e.target === $id('setup-modal')) closeSetup();
+  }
+
+  function setInitServe(side) {
+    initServeSide = side;
+    highlightInitServe(side);
+  }
+  function highlightInitServe(side) {
+    $id('init-serve-L').style.borderColor = side === 'L' ? '#fbbf24' : 'transparent';
+    $id('init-serve-R').style.borderColor = side === 'R' ? '#fbbf24' : 'transparent';
+  }
+
+  async function saveSetup() {
+    const body = {
+      tournament:   $id('s-tournament').value.trim(),
+      category:     $id('s-category').value,
+      court:        $id('s-court').value.trim(),
+      matchNo:      $id('s-matchno').value.trim(),
+      umpire:       $id('s-umpire').value.trim(),
+      serviceJudge: $id('s-sj').value.trim(),
+      teamL: {
+        flag:    $id('s-flag-L').value.trim()  || '',
+        player1: $id('s-p1-L').value.trim(),
+        player2: $id('s-p2-L').value.trim(),
+        club:    $id('s-club-L').value.trim(),
+      },
+      teamR: {
+        flag:    $id('s-flag-R').value.trim()  || '',
+        player1: $id('s-p1-R').value.trim(),
+        player2: $id('s-p2-R').value.trim(),
+        club:    $id('s-club-R').value.trim(),
+      }
+    };
+    const r = await api('/api/setup', body);
+    if (r.ok) {
+      // Set serve after setup
+      await api('/api/serve', { side: initServeSide });
+      closeSetup();
+      toast('✓ Setup disimpan!', 2000);
+      // Refresh DB
+      fetch('/api/db').then(r => r.json()).then(d => { dbData = d; });
+    } else {
+      toast('⚠ Gagal menyimpan', 2000);
+    }
+  }
+
+  // ───────────────────────────────────────────
+  //  Auto-complete
+  // ───────────────────────────────────────────
+  let acTimers = {};
+
+  // Player fields that must have unique values
+  const PLAYER_FIELDS = ['s-p1-L', 's-p2-L', 's-p1-R', 's-p2-R'];
+  function getUsedPlayers(exceptId) {
+    return PLAYER_FIELDS
+      .filter(id => id !== exceptId)
+      .map(id => { const el = document.getElementById(id); return el ? el.value.trim().toLowerCase() : ''; })
+      .filter(v => v.length > 0);
+  }
+
+  function acSearch(input, type, listId) {
+    const q    = input.value.trim().toLowerCase();
+    const list = $id(listId);
+    if (!q) { list.classList.add('hidden'); return; }
+    let items = dbData[type] || [];
+    if (type === 'players') {
+      const used = getUsedPlayers(input.id);
+      items = items.filter(v => !used.includes(v.toLowerCase()));
+    }
+    const results = items.filter(v => v.toLowerCase().includes(q)).slice(0, 10);
+    if (!results.length) { list.classList.add('hidden'); return; }
+    list.innerHTML = results.map(v =>
+      `<div class="ac-item" onmousedown="acSelect('${input.id}','${listId}',this.textContent)">${v}</div>`
+    ).join('');
+    list.classList.remove('hidden');
+  }
+
+  function acShowAll(inputId, type, listId) {
+    const list = $id(listId);
+    let all = dbData[type] || [];
+    if (type === 'players') {
+      const used = getUsedPlayers(inputId);
+      all = all.filter(v => !used.includes(v.toLowerCase()));
+    }
+    all = all.sort((a, b) => a.localeCompare(b, 'id'));
+    if (!all.length) { list.innerHTML = '<div class="ac-item" style="color:#64748b">— Database kosong / semua nama sudah dipakai —</div>'; list.classList.remove('hidden'); return; }
+    list.innerHTML = all.map(v =>
+      `<div class="ac-item" onmousedown="acSelect('${inputId}','${listId}',this.textContent)">${v}</div>`
+    ).join('');
+    list.classList.remove('hidden');
+  }
+
+  function acSelect(inputId, listId, val) {
+    $id(inputId).value = val;
+    $id(listId).classList.add('hidden');
+  }
+
+  function acHide(listId, delay) {
+    clearTimeout(acTimers[listId]);
+    acTimers[listId] = setTimeout(() => {
+      const el = $id(listId);
+      if (el) el.classList.add('hidden');
+    }, delay);
+  }
+
+  // ── Court Visualization ──────────────────────
+  let courtVisible = false;
+
+  function toggleCourt() {
+    courtVisible = !courtVisible;
+    $id('court-panel').classList.toggle('hidden', !courtVisible);
+    $id('court-toggle-icon').textContent = courtVisible ? '▴' : '▾';
+    if (courtVisible && currentState) updateCourtSVG(currentState);
+  }
+
+  function svgMove(id, cx, cy) {
+    const g = document.getElementById(id);
+    if (!g) return;
+    g.querySelectorAll('circle').forEach(el => { el.setAttribute('cx', cx); el.setAttribute('cy', cy); });
+    g.querySelectorAll('text').forEach(el => { el.setAttribute('x', cx); el.setAttribute('y', cy); });
+  }
+
+  function updateCourtSVG(s) {
+    if (!courtVisible) return;
+    const gk = `game${s.activeGame}`;
+    const scL = s.scores[gk].L;
+    const scR = s.scores[gk].R;
+    const srv = s.serverSide;
+    const rcv = srv === 'L' ? 'R' : 'L';
+    const doubles = !!(s.teams.L.player2 && s.teams.R.player2);
+    // Server score determines service court: even = right (upper in display), odd = left (lower)
+    const srvScore = srv === 'L' ? scL : scR;
+    const even = srvScore % 2 === 0;
+    // Near-net y positions: upper=85, lower=225
+    const srvNearY = even ? 85 : 225;
+    const rcvNearY = even ? 225 : 85;  // diagonally opposite
+    const partnerY  = even ? 225 : 85; // partner in opposite quadrant (from back)
+    const rcvBkY    = even ? 85  : 225;
+    // x positions
+    const NX = { L: 258, R: 341 }; // near-net x
+    const BX = { L: 80,  R: 480 }; // back court x
+    // Who serves P1 or P2?
+    const p1Serves = !(s.serverP2 && s.serverP2[srv]);
+    // Build position map
+    const pos = {};
+    // Serving side
+    pos[`${srv}-${p1Serves ? 1 : 2}`] = { x: NX[srv], y: srvNearY };   // server
+    pos[`${srv}-${p1Serves ? 2 : 1}`] = { x: BX[srv], y: partnerY  };  // partner
+    // Receiving side (always P1 as receiver for simplicity)
+    pos[`${rcv}-1`] = { x: NX[rcv], y: rcvNearY };
+    pos[`${rcv}-2`] = { x: BX[rcv], y: rcvBkY   };
+    // Singles override: only P1, positioned same way
+    if (!doubles) { pos[`${rcv}-1`] = { x: NX[rcv], y: rcvNearY }; }
+
+    // Update player circles
+    for (const side of ['L','R']) {
+      const t = s.teams[side];
+      const hasP2 = !!t.player2;
+      for (const pn of [1,2]) {
+        const gId = `cp-${side}-${pn}`;
+        const g = document.getElementById(gId);
+        if (!g) continue;
+        if (pn === 2 && !hasP2) { g.style.display = 'none'; continue; }
+        g.style.display = '';
+        const p = pos[`${side}-${pn}`] || { x: BX[side], y: 155 };
+        svgMove(gId, p.x, p.y);
+        // Abbreviate name (initials)
+        const name = pn === 1 ? t.player1 : t.player2;
+        const abbr = name ? name.split(/\s+/).map(w => w[0]||'').join('').toUpperCase().slice(0,3) : `P${pn}`;
+        document.getElementById(`cp-${side}-${pn}-lbl`).textContent = abbr;
+        // Server ring
+        const isSrv = side === srv && ((pn === 1 && p1Serves) || (pn === 2 && !p1Serves));
+        document.getElementById(`cp-${side}-${pn}-ring`).setAttribute('opacity', isSrv ? '1' : '0');
+      }
+    }
+
+    // Shuttle icon at server position
+    const srvPos = pos[`${srv}-${p1Serves ? 1 : 2}`];
+    const shuttle = $id('court-shuttle');
+    shuttle.setAttribute('x', srvPos.x);
+    shuttle.setAttribute('y', srvPos.y - 30);
+    shuttle.setAttribute('opacity', '0.95');
+
+    // Serve arrow
+    const rcvPos = pos[`${rcv}-1`];
+    const al = $id('court-arrow-line');
+    // Offset arrow start/end so it doesn't overlap circles
+    const dx = rcvPos.x - srvPos.x, dy = rcvPos.y - srvPos.y;
+    const len = Math.sqrt(dx*dx+dy*dy);
+    const off = 28;
+    al.setAttribute('x1', srvPos.x + dx/len*off);
+    al.setAttribute('y1', srvPos.y + dy/len*off);
+    al.setAttribute('x2', rcvPos.x - dx/len*off);
+    al.setAttribute('y2', rcvPos.y - dy/len*off);
+    al.setAttribute('opacity', '1');
+
+    // Service box shading
+    const sBox = $id('court-srv-box');
+    const rBox = $id('court-rcv-box');
+    if (srv === 'L') {
+      sBox.setAttribute('x', 217); sBox.setAttribute('width', 83);
+    } else {
+      sBox.setAttribute('x', 300); sBox.setAttribute('width', 83);
+    }
+    sBox.setAttribute('y', srvNearY === 85 ? 15 : 155);
+    sBox.setAttribute('height', 140);
+    if (rcv === 'L') {
+      rBox.setAttribute('x', 217); rBox.setAttribute('width', 83);
+    } else {
+      rBox.setAttribute('x', 300); rBox.setAttribute('width', 83);
+    }
+    rBox.setAttribute('y', rcvNearY === 85 ? 15 : 155);
+    rBox.setAttribute('height', 140);
+
+    // Scores on court
+    $id('court-score-L').textContent = `L: ${scL}`;
+    $id('court-score-R').textContent = `R: ${scR}`;
+
+    // Info text
+    const srvName = p1Serves ? (s.teams[srv].player1 || 'P1') : (s.teams[srv].player2 || 'P2');
+    const courtSide = even ? 'kanan' : 'kiri';
+    $id('court-info').textContent = `${srvName} servis dari kotak ${courtSide} · Skor ${srvScore} (${even ? 'genap' : 'ganjil'})`;
+  }
+
+  async function courtClickPlayer(side, pn) {
+    if (!currentState || currentState.isMatchOver) return;
+    // Switch serve side if needed
+    if (currentState.serverSide !== side) {
+      await api('/api/serve', { side });
+    }
+    // Toggle player (p1 vs p2) if doubles
+    const t = currentState.teams[side];
+    if (!t.player2) return; // singles — nothing to toggle
+    const curP2 = !!(currentState.serverP2 && currentState.serverP2[side]);
+    if ((pn === 2 && !curP2) || (pn === 1 && curP2)) {
+      await api('/api/toggle-server', { side });
+    }
+  }
+
+  // ───────────────────────────────────────────
+  //  Toast
+  // ───────────────────────────────────────────
+  let toastTimer = null;
+  function toast(msg, ms = 2500) {
+    const el = $id('toast');
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    el.style.opacity = '1';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      el.style.opacity = '0';
+      setTimeout(() => el.classList.add('hidden'), 300);
+    }, ms);
+  }
+
+  // Open setup on first load if no tournament set
+  socket.on('connect', () => {
+    setTimeout(() => {
+      if (currentState && !currentState.tournament) openSetup();
+    }, 500);
+  });
+</script>
+</body>
+</html>

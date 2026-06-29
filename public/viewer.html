@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#0f172a">
+  <title>Skor Live — Badminton</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Arial', sans-serif; }
+    .serve-glow { box-shadow: 0 0 10px #fbbf24, 0 0 20px #f59e0b55; }
+    .score-num { font-variant-numeric: tabular-nums; }
+    .live-dot { animation: livePulse 1.5s ease-in-out infinite; }
+    @keyframes livePulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen">
+
+  <!-- Header -->
+  <div class="bg-slate-800 border-b border-slate-700 px-4 py-3 sticky top-0 z-10">
+    <div class="max-w-md mx-auto flex items-center justify-between">
+      <div>
+        <div class="text-yellow-400 font-black text-base leading-tight" id="v-tournament">BADMINTON</div>
+        <div class="text-slate-400 text-xs mt-0.5">
+          <span id="v-cat">—</span> &nbsp;·&nbsp; <span id="v-court">—</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-red-500 live-dot"></div>
+        <span class="text-red-400 font-bold text-xs tracking-widest">LIVE</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Badge -->
+  <div class="max-w-md mx-auto px-4 pt-4">
+    <div class="flex items-center justify-between mb-3">
+      <span class="bg-blue-900 text-blue-300 text-xs font-bold px-3 py-1 rounded-full tracking-widest" id="v-game-badge">GAME 1</span>
+      <span class="text-slate-500 text-xs" id="v-clock">—</span>
+    </div>
+
+    <!-- Teams Card -->
+    <div class="bg-slate-800 rounded-2xl overflow-hidden shadow-xl">
+
+      <!-- Team L -->
+      <div class="p-4 border-b border-slate-700/60" id="card-L">
+        <div class="flex items-center gap-3">
+          <!-- Serve dot -->
+          <div class="w-3 h-3 rounded-full bg-slate-600 flex-shrink-0" id="v-serve-L"></div>
+          <!-- Flag + Names -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl" id="v-flag-L"></span>
+              <div class="min-w-0">
+                <div class="font-black text-white text-base leading-tight truncate" id="v-p1-L">PLAYER A</div>
+                <div class="font-semibold text-slate-300 text-sm truncate" id="v-p2-L"></div>
+                <div class="text-yellow-500 text-xs mt-0.5 truncate" id="v-club-L"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Set history -->
+          <div class="flex gap-1.5 items-center" id="v-hist-L"></div>
+          <!-- Score -->
+          <div class="score-num text-6xl font-black min-w-[72px] text-right rounded-xl px-3 py-1 transition-all" id="v-score-L">0</div>
+        </div>
+      </div>
+
+      <!-- Team R -->
+      <div class="p-4" id="card-R">
+        <div class="flex items-center gap-3">
+          <div class="w-3 h-3 rounded-full bg-slate-600 flex-shrink-0" id="v-serve-R"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-2xl" id="v-flag-R"></span>
+              <div class="min-w-0">
+                <div class="font-black text-white text-base leading-tight truncate" id="v-p1-R">PLAYER B</div>
+                <div class="font-semibold text-slate-300 text-sm truncate" id="v-p2-R"></div>
+                <div class="text-yellow-500 text-xs mt-0.5 truncate" id="v-club-R"></div>
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-1.5 items-center" id="v-hist-R"></div>
+          <div class="score-num text-6xl font-black min-w-[72px] text-right rounded-xl px-3 py-1 transition-all" id="v-score-R">0</div>
+        </div>
+      </div>
+
+    </div><!-- /teams card -->
+
+    <!-- Serve Info -->
+    <div class="mt-3 text-center">
+      <span class="text-slate-400 text-xs">Servis: </span>
+      <span class="text-yellow-400 font-bold text-sm" id="v-serve-label">—</span>
+    </div>
+
+    <!-- Interval Banner -->
+    <div id="v-interval-banner" class="hidden mt-4 bg-yellow-500/20 border border-yellow-500/50 rounded-2xl p-4 text-center">
+      <div class="text-yellow-400 font-black text-xl">⏱ INTERVAL</div>
+      <div class="text-white text-base mt-1" id="v-int-score">0 – 0</div>
+      <div class="text-yellow-300/70 text-xs mt-1">Istirahat 60 detik</div>
+    </div>
+
+    <!-- Match Over Banner -->
+    <div id="v-matchover-banner" class="hidden mt-4 bg-green-500/20 border border-green-500/50 rounded-2xl p-4 text-center">
+      <div class="text-green-400 font-black text-xl">🏆 PEMENANG</div>
+      <div class="text-white font-bold text-lg mt-1" id="v-mo-winner">—</div>
+      <div class="text-green-300/70 text-sm mt-1" id="v-mo-score">—</div>
+    </div>
+
+    <!-- Score History Detail -->
+    <div class="mt-4 bg-slate-800/50 rounded-2xl p-4">
+      <div class="text-slate-400 text-xs font-semibold mb-2 tracking-wider">SKOR PER GAME</div>
+      <div id="v-games-detail" class="space-y-1"></div>
+    </div>
+
+    <!-- Info footer -->
+    <div class="mt-4 mb-8 text-center text-slate-600 text-xs">
+      <span>Wasit: <span id="v-umpire">—</span></span>
+    </div>
+
+  </div><!-- /max-w -->
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+
+    socket.on('connect',      () => updateConnStatus(true));
+    socket.on('disconnect',   () => updateConnStatus(false));
+    socket.on('state_update', s  => render(s));
+
+    function $id(id) { return document.getElementById(id); }
+
+    function teamName(t) {
+      return (t.player2 ? `${t.player1} / ${t.player2}` : t.player1) || '—';
+    }
+
+    function render(s) {
+      $id('v-tournament').textContent = s.tournament || 'BADMINTON';
+      $id('v-cat').textContent        = s.category   || '—';
+      $id('v-court').textContent      = s.court ? `Court ${s.court}` : '—';
+      $id('v-game-badge').textContent = `GAME ${s.activeGame}`;
+      $id('v-umpire').textContent     = s.umpire || '—';
+
+      ['L','R'].forEach(side => {
+        const t = s.teams[side];
+      $id(`v-flag-${side}`).textContent  = t.flag    || '';
+        $id(`v-flag-${side}`).style.display = t.flag ? '' : 'none';
+        $id(`v-p1-${side}`).textContent    = t.player1 || `Team ${side}`;
+        $id(`v-p2-${side}`).textContent    = t.player2 || '';
+        $id(`v-club-${side}`).textContent  = t.club    || '';
+      });
+
+      // Scores
+      const gk = `game${s.activeGame}`;
+      const sc = s.scores[gk];
+      ['L','R'].forEach(side => {
+        const isServing = s.serverSide === side;
+        $id(`v-score-${side}`).textContent = sc[side];
+        $id(`v-score-${side}`).style.cssText = isServing
+          ? 'background:#E85014;color:#fff;border-radius:0.75rem;padding:4px 0;'
+          : 'background:#1e293b;color:#fff;border-radius:0.75rem;padding:4px 0;';
+        const dot = $id(`v-serve-${side}`);
+        dot.style.cssText = isServing
+          ? 'width:12px;height:12px;border-radius:50%;background:#E85014;box-shadow:0 0 8px #E85014;flex-shrink:0;'
+          : 'width:12px;height:12px;border-radius:50%;background:#475569;flex-shrink:0;';
+      });
+
+      $id('v-serve-label').textContent = s.serverSide === 'L'
+        ? teamName(s.teams.L)
+        : teamName(s.teams.R);
+
+      // History
+      ['L','R'].forEach(side => {
+        const c = $id(`v-hist-${side}`);
+        c.innerHTML = '';
+        for (let g = 1; g < s.activeGame; g++) {
+          const v = s.scores[`game${g}`][side];
+          c.innerHTML += `<span style="background:#334155;color:#94a3b8;border-radius:6px;padding:1px 7px;font-size:0.85rem;font-weight:700;">${v}</span>`;
+        }
+      });
+
+      // Games detail
+      const det = $id('v-games-detail');
+      det.innerHTML = '';
+      for (let g = 1; g <= 3; g++) {
+        const gsc  = s.scores[`game${g}`];
+        const done = gsc.L > 0 || gsc.R > 0;
+        if (done || g <= s.activeGame) {
+          const isActive = g === s.activeGame;
+          det.innerHTML += `
+            <div class="flex justify-between items-center text-sm
+              ${isActive ? 'text-white font-bold' : 'text-slate-400'}">
+              <span>Game ${g}</span>
+              <span>${gsc.L} – ${gsc.R}</span>
+            </div>`;
+        }
+      }
+      if (!det.innerHTML) det.innerHTML = '<div class="text-slate-500 text-xs">Belum ada data</div>';
+
+      // Banners
+      if (s.isMatchOver && s.winner) {
+        const parts = [];
+        for (let g = 1; g <= 3; g++) {
+          const gsc = s.scores[`game${g}`];
+          if (gsc.L > 0 || gsc.R > 0) parts.push(`${gsc.L}–${gsc.R}`);
+        }
+        $id('v-mo-winner').textContent = teamName(s.teams[s.winner]);
+        $id('v-mo-score').textContent  = `${s.gamesWon.L}–${s.gamesWon.R} (${parts.join(', ')})`;
+        $id('v-matchover-banner').classList.remove('hidden');
+        $id('v-interval-banner').classList.add('hidden');
+      } else if (s.isInterval) {
+        $id('v-int-score').textContent = `${sc.L} – ${sc.R}`;
+        $id('v-interval-banner').classList.remove('hidden');
+        $id('v-matchover-banner').classList.add('hidden');
+      } else {
+        $id('v-interval-banner').classList.add('hidden');
+        $id('v-matchover-banner').classList.add('hidden');
+      }
+    }
+
+    function updateConnStatus(connected) {
+      const dot = document.querySelector('.live-dot');
+      if (dot) dot.style.background = connected ? '#ef4444' : '#64748b';
+    }
+
+    // Clock
+    setInterval(() => {
+      $id('v-clock').textContent = new Date().toLocaleTimeString('id-ID');
+    }, 1000);
+  </script>
+</body>
+</html>

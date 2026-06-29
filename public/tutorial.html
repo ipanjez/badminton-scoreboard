@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tutorial — Badminton Scoreboard System</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @media print {
+      .no-print { display: none !important; }
+      body { background: white !important; color: black !important; }
+      .print-page { break-inside: avoid; }
+      a { color: black; }
+      .print-border { border: 1px solid #ccc !important; }
+    }
+    body { font-family: 'Arial', sans-serif; }
+    .step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; border-radius: 50%;
+      background: #fbbf24; color: #000; font-weight: 900; font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+  <!-- Print button -->
+  <div class="no-print bg-yellow-400 text-slate-900 px-4 py-3 flex items-center justify-between sticky top-0 z-10 shadow">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🏸</span>
+      <span class="font-black">Badminton Scoreboard — Panduan Penggunaan</span>
+    </div>
+    <div class="flex gap-2">
+      <a href="/display" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold">← Display</a>
+      <button onclick="window.print()" class="bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold">🖨 Print</button>
+    </div>
+  </div>
+
+  <div class="max-w-3xl mx-auto px-4 py-8 space-y-8">
+
+    <!-- Cover -->
+    <div class="text-center py-6 print-page">
+      <div class="text-6xl mb-4">🏸</div>
+      <h1 class="text-3xl font-black text-gray-900 mb-2">PANDUAN PENGGUNAAN</h1>
+      <h2 class="text-xl font-bold text-yellow-600 mb-1">Sistem Pencatatan Skor Bulutangkis</h2>
+      <p class="text-gray-500 text-sm">Web-Based Badminton Scoreboard &amp; Match Manager</p>
+      <div class="mt-4 bg-yellow-50 border border-yellow-300 rounded-xl p-4 text-sm text-left inline-block">
+        <strong>Persyaratan:</strong> Tablet/HP sebagai Controller &amp; TV/Monitor sebagai Display.<br>
+        Semua perangkat harus terhubung ke jaringan Wi-Fi yang <strong>sama</strong>.
+      </div>
+    </div>
+
+    <!-- Bagian 1: Persiapan Jaringan -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print-page print-border">
+      <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+        <span class="text-2xl">📡</span> Bagian 1: Persiapan Jaringan Wi-Fi
+      </h3>
+      <div class="space-y-4">
+        <div class="flex gap-3">
+          <span class="step-num">1</span>
+          <div>
+            <strong>Buat Hotspot di Laptop/PC Server</strong><br>
+            <span class="text-gray-600 text-sm">Di Windows: Buka <em>Pengaturan → Jaringan → Hotspot Seluler</em>.
+            Aktifkan hotspot. Catat nama dan password Wi-Fi yang dibuat.</span>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="step-num">2</span>
+          <div>
+            <strong>Hubungkan Semua Perangkat ke Satu Wi-Fi yang sama</strong><br>
+            <span class="text-gray-600 text-sm">Tablet wasit, TV (Smart TV/Android TV), dan HP penonton semuanya harus
+            terhubung ke Wi-Fi yang sama di langkah 1 (Opsional: Menggunakan Wi-Fi dari Router). Koneksi internet tidak diperlukan.</span>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="step-num">3</span>
+          <div>
+            <strong>Jalankan Server di PC</strong><br>
+            <span class="text-gray-600 text-sm">Buka terminal/CMD di folder aplikasi, lalu ketik:</span>
+            <code class="block bg-gray-100 text-gray-800 rounded-lg px-3 py-2 mt-1 text-sm font-mono">node server.js</code>
+            <span class="text-gray-600 text-sm">Server akan menampilkan alamat IP jaringan, contoh: <code>http://192.168.137.1:3000</code></span>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="step-num">4</span>
+          <div>
+            <strong>Buka Alamat di Setiap Perangkat</strong><br>
+            <div class="mt-2 space-y-1 text-sm">
+              <div class="flex gap-2 items-center bg-blue-50 rounded-lg px-3 py-2">
+                <span>📺</span>
+                <span><strong>TV/Proyektor:</strong> Buka browser → <code>http://[IP]:3000/display</code></span>
+              </div>
+              <div class="flex gap-2 items-center bg-green-50 rounded-lg px-3 py-2">
+                <span>📱</span>
+                <span><strong>Tablet Wasit:</strong> Buka browser → <code>http://[IP]:3000/controller</code></span>
+              </div>
+              <div class="flex gap-2 items-center bg-purple-50 rounded-lg px-3 py-2">
+                <span>👀</span>
+                <span><strong>HP Penonton:</strong> Buka browser → <code>http://[IP]:3000/viewer</code></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bagian 2: Login Controller -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print-page print-border">
+      <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+        <span class="text-2xl">🔐</span> Bagian 2: Login Panel Kontrol
+      </h3>
+      <div class="space-y-3 text-sm text-gray-700">
+        <p>Halaman <strong>/controller</strong> dilindungi PIN. PIN default adalah <strong class="text-xl text-yellow-600">1234</strong>.</p>
+        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <strong>⚠ Keamanan:</strong> Untuk keamanan optimal, ubah PIN sebelum digunakan di turnamen resmi.
+          Jalankan server dengan perintah:<br>
+          <code class="block bg-white rounded px-2 py-1 mt-1 font-mono">CONTROLLER_PIN=7890 node server.js</code>
+        </div>
+        <p>Setelah login, sesi akan bertahan selama 12 jam. Klik tombol "Keluar" untuk mengakhiri sesi.</p>
+      </div>
+    </div>
+
+    <!-- Bagian 3: Setup Pertandingan -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print-page print-border">
+      <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+        <span class="text-2xl">⚙</span> Bagian 3: Setup Pertandingan
+      </h3>
+      <div class="space-y-3 text-sm text-gray-700">
+        <div class="flex gap-3">
+          <span class="step-num">1</span>
+          <div>
+            Klik tombol <strong>⚙ Setup</strong> di kanan atas controller.
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="step-num">2</span>
+          <div>
+            Isi nama turnamen, kategori, nomor lapangan, wasit, dan nama pemain.
+            <br><span class="text-gray-500">Nama pemain yang pernah digunakan akan muncul sebagai saran otomatis (auto-complete).</span>
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <span class="step-num">3</span>
+          <div>Pilih tim mana yang <strong>Servis Pertama</strong>, lalu klik <strong>✓ Simpan &amp; Terapkan</strong>.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bagian 4: Mencatat Poin -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print-page print-border">
+      <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+        <span class="text-2xl">🏸</span> Bagian 4: Mencatat Poin
+      </h3>
+      <div class="space-y-3 text-sm text-gray-700">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-blue-50 rounded-xl p-4">
+            <div class="text-2xl font-black text-center text-blue-600 mb-2">+</div>
+            <strong>Tombol + (Plus)</strong><br>
+            Tekan untuk menambah 1 poin ke tim tersebut.
+            Perpindahan servis (Service Over) terjadi <em>otomatis</em> jika tim yang bukan server yang memenangkan reli.
+          </div>
+          <div class="bg-amber-50 rounded-xl p-4">
+            <div class="text-2xl font-black text-center text-amber-600 mb-2">↩</div>
+            <strong>Koreksi / Undo</strong><br>
+            Membatalkan poin terakhir yang dicetak. Bisa ditekan berkali-kali untuk mundur lebih jauh.
+          </div>
+        </div>
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <strong>🏸 Aturan BWF yang Diimplementasikan:</strong>
+          <ul class="list-disc pl-4 mt-2 space-y-1">
+            <li>Rally Point 21 — menang harus unggul 2 poin</li>
+            <li>Deuce maksimum 30 poin (30-29 = menang)</li>
+            <li><strong>Interval otomatis</strong> saat skor 11 pertama kali tercapai</li>
+            <li><strong>Service Over otomatis</strong> — server berubah otomatis ke tim pemenang reli</li>
+            <li>Best of 3 games — tim pertama yang memenangkan 2 game</li>
+          </ul>
+        </div>
+        <div class="flex gap-3">
+          <div class="font-bold text-orange-600">⚡ Interval:</div>
+          <div>Saat skor 11 tercapai, banner "INTERVAL" muncul di TV dan controller.
+          Klik <strong>Lanjutkan ▶</strong> di controller setelah istirahat 60 detik selesai.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bagian 5: Game Berikutnya & Export PDF -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print-page print-border">
+      <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+        <span class="text-2xl">📄</span> Bagian 5: Game Berikutnya &amp; Export PDF
+      </h3>
+      <div class="space-y-3 text-sm text-gray-700">
+        <div class="flex gap-3">
+          <span class="step-num">1</span>
+          <div>Setelah suatu game selesai, tekan <strong>Game ▶ Lanjut</strong> untuk pindah ke game berikutnya.</div>
+        </div>
+        <div class="flex gap-3">
+          <span class="step-num">2</span>
+          <div>Setelah pertandingan selesai, tekan <strong>📄 PDF Export</strong>. Browser akan langsung mengunduh
+          file PDF resmi berformat Landscape A4 dengan layout score sheet BWF standar.</div>
+        </div>
+        <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+          <strong>📋 Isi PDF Score Sheet:</strong>
+          <ul class="list-disc pl-4 mt-2 space-y-1">
+            <li>Header: Nama Turnamen, Event, Match No, Court, Date/Time, Wasit</li>
+            <li>Tabel ringkasan skor (Game 1, 2, 3 + pemenang)</li>
+            <li>Grid skor per game dengan notasi kronologis BWF</li>
+            <li>Lingkaran merah pada poin Interval (11) dan poin kemenangan</li>
+            <li>Indikator Service Over (tanda diagonal)</li>
+            <li>Footer: Waktu mulai/selesai, durasi, kolom tanda tangan</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Troubleshooting -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print-page print-border">
+      <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+        <span class="text-2xl">🔧</span> Troubleshooting
+      </h3>
+      <div class="space-y-3 text-sm">
+        <div class="border-l-4 border-red-400 pl-3">
+          <strong>Perangkat tidak bisa membuka alamat server</strong><br>
+          <span class="text-gray-600">Pastikan semua perangkat terhubung ke hotspot yang sama. Coba matikan firewall Windows sementara.</span>
+        </div>
+        <div class="border-l-4 border-orange-400 pl-3">
+          <strong>Skor tidak update di TV</strong><br>
+          <span class="text-gray-600">Muat ulang halaman /display. Pastikan koneksi Wi-Fi stabil.</span>
+        </div>
+        <div class="border-l-4 border-yellow-400 pl-3">
+          <strong>PDF tidak bisa dibuat</strong><br>
+          <span class="text-gray-600">Pastikan library jsPDF berhasil diinstall (<code>npm install</code> sudah dijalankan). Coba refresh halaman controller.</span>
+        </div>
+        <div class="border-l-4 border-blue-400 pl-3">
+          <strong>Auto-complete nama tidak muncul</strong><br>
+          <span class="text-gray-600">Nama akan tersimpan otomatis setelah setup pertandingan pertama. Setelah itu auto-complete akan berfungsi.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-gray-400 text-xs pb-8">
+      Badminton Scoreboard System v1.0 &nbsp;·&nbsp; Powered by Node.js + Socket.io
+    </div>
+
+  </div><!-- /max-w -->
+</body>
+</html>

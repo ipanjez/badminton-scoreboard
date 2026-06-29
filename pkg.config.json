@@ -1,0 +1,7 @@
+{
+  "name": "badminton-scoreboard-pkg",
+  "assets": [],
+  "scripts": [],
+  "targets": ["node18-win-x64"],
+  "outputPath": "dist"
+}
