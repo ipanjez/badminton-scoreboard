@@ -449,16 +449,16 @@ function _drawEntries(doc, gh, baseY, DROW_H, isDoubles, rowsPerSide) {
         // Server's team scored — place on server's row
         rowOffset = (srvSide === 'L' ? 0 : rowsPerSide) + (srvPlayerIdx - 1);
       } else {
-        // Receiver's team scored — place on receiver's row
-        // Receiver is on the opposite side. In doubles, the receiver is
-        // diagonally opposite, so if server is player 1, receiver gets row offset 1, etc.
-        // But we simplify: the receiver's row alternates based on server's score (even/odd)
-        const rcvSide = srvSide === 'L' ? 'R' : 'L';
-        // The receiver player index: in BWF doubles, the receiving position alternates.
-        // Since we don't track this directly, we use a simple heuristic:
-        // Place on player 1 row if even score, player 2 row if odd score of the receiver
-        const rcvScore = rcvSide === 'L' ? entry.prevL : entry.prevR;
-        const rcvPlayerRow = (rcvScore % 2 === 0) ? 0 : 1;
+        // Receiver's team scored — place on receiver's row.
+        // Receiver = player diagonally opposite to server.
+        // Server's court: RIGHT if (P1 & srvScore even) OR (P2 & srvScore odd)
+        const rcvSide   = srvSide === 'L' ? 'R' : 'L';
+        const srvScore  = srvSide === 'L' ? entry.prevL : entry.prevR;
+        const rcvScore  = rcvSide === 'L' ? entry.prevL : entry.prevR;
+        const serverInRight  = srvPlayerIdx === 1 ? (srvScore % 2 === 0) : (srvScore % 2 !== 0);
+        // Receiver in RIGHT → P1 row(0) if rcvScore even, P2 row(1) if odd
+        // Receiver in LEFT  → P2 row(1) if rcvScore even, P1 row(0) if odd
+        const rcvPlayerRow = serverInRight === (rcvScore % 2 === 0) ? 1 : 0;
         rowOffset = (rcvSide === 'L' ? 0 : rowsPerSide) + rcvPlayerRow;
       }
     } else {

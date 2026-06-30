@@ -69,6 +69,25 @@ function safe(str, maxLen = 40) {
     .slice(0, maxLen);
 }
 
+// ─── Short team label: first player's first name + first word of club ────────
+// Strips common Indonesian club prefixes (PB, PERKUMPULAN) to keep it short.
+// Result example: "ALYA(HEVINDO)" or "ALISA-AZRA(ARJUNA)"
+function teamSlug(team) {
+  // First name of player 1 (first word, max 12 chars)
+  const p1 = safe((team.player1 || '').split(' ')[0], 12);
+  // First name of player 2 if doubles (first word, max 8 chars)
+  const p2 = team.player2 ? safe((team.player2 || '').split(' ')[0], 8) : '';
+  const namePart = p1 && p2 ? `${p1}-${p2}` : p1;
+
+  // Club: strip leading "PB" / "PERKUMPULAN" prefix, take first content word
+  const clubWord = safe(
+    (team.club || '').replace(/^(PB|PERKUMPULAN)\s+/i, '').split(/\s+/)[0], 10
+  );
+
+  if (namePart && clubWord) return `${namePart}(${clubWord})`;
+  return namePart || clubWord || '';
+}
+
 // ─── Build the export filename ───────────────────────────────────────────────
 function buildFilename(state) {
   const s = Object.assign({}, state, {
@@ -80,12 +99,17 @@ function buildFilename(state) {
   const date = `${ref.getFullYear()}${pad(ref.getMonth() + 1)}${pad(ref.getDate())}`;
   const time = `${pad(ref.getHours())}${pad(ref.getMinutes())}${pad(ref.getSeconds())}`;
 
+  const slugL = teamSlug(s.teams.L);
+  const slugR = teamSlug(s.teams.R);
+  const matchup = slugL && slugR ? `${slugL}_vs_${slugR}` : (slugL || slugR);
+
   const parts = [
     'ScoreSheet',
-    safe(s.tournament, 50) || 'Match',
+    safe(s.tournament, 40) || 'Match',
     safe(s.category, 10),
-    s.court ? 'Court' + safe(s.court, 15) : '',
-    s.matchNo ? 'No' + safe(s.matchNo, 10) : '',
+    s.court  ? 'Court' + safe(s.court.replace(/^court\s*/i, ''),  12) : '',
+    s.matchNo ? 'No'   + safe(s.matchNo.replace(/^no\.?\s*/i, ''), 8) : '',
+    matchup,
     date,
     time,
   ].filter(Boolean);

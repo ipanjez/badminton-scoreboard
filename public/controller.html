@@ -1218,10 +1218,14 @@
               if (srvSide === teamCode && srvPIdx === pIdx) {
                 showOnThisRow = true;
               } else if (srvSide !== teamCode) {
-                // This team was receiving. Place on receiver's row.
-                // Receiver position based on receiver's score before this point
+                // This team was RECEIVING. Receiver = player diagonally opposite server.
+                // Server's court: RIGHT if (P1 & srvScore even) OR (P2 & srvScore odd)
+                const srvScore    = srvSide === 'L' ? h.prevL : h.prevR;
                 const rcvPrevScore = teamCode === 'L' ? h.prevL : h.prevR;
-                const rcvRow = (rcvPrevScore % 2 === 0) ? 1 : 2;
+                const serverInRight = srvPIdx === 1 ? (srvScore % 2 === 0) : (srvScore % 2 !== 0);
+                // Receiver in RIGHT → P1 if rcvScore even, P2 if odd
+                // Receiver in LEFT  → P2 if rcvScore even, P1 if odd
+                const rcvRow = serverInRight === (rcvPrevScore % 2 === 0) ? 2 : 1;
                 if (pIdx === rcvRow) showOnThisRow = true;
               }
             }
