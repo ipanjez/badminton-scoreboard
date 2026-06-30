@@ -1,0 +1,219 @@
+﻿
+  public\controller.html:911:    // but if requested to just be there, we can let it be visual only or send to backend 
+if needed.
+  public\controller.html:912:    // The prompt just said "simbol ikon cock + dan ikon cock - di kiri dan kanan"
+  public\controller.html:913:    toast(`Shuttlecock ditambahkan/dikurangi untuk Tim ${side}`, 1000);
+  public\controller.html:914:  }
+  public\controller.html:915:
+  public\controller.html:916:  // ───────────────────────────────────────────
+  public\controller.html:917:  //  Realtime Scoreboard Table
+  public\controller.html:918:  // ───────────────────────────────────────────
+  public\controller.html:919:  function updateScoreboardTable(s) {
+  public\controller.html:920:    const tbody = $id('sb-tbody');
+  public\controller.html:921:    const headerRow = $id('sb-header-row');
+  public\controller.html:922:    if (!tbody || !headerRow) return;
+  public\controller.html:923:
+  public\controller.html:924:    headerRow.textContent = `Skor (Game ${s.activeGame})`;
+  public\controller.html:925:    
+  public\controller.html:926:    // Filter history for current game
+  public\controller.html:927:    const gameHistory = s.history.filter(h => h.game === s.activeGame);
+  public\controller.html:928:    
+  public\controller.html:929:    const renderRow = (teamCode, label) => {
+  public\controller.html:930:      let html = `<tr class="border-b border-slate-300 bg-white">
+  public\controller.html:931:                    <td class="px-2 py-1 sticky left-0 bg-slate-100 font-bold border-r 
+border-slate-300 text-slate-800">${label}</td>`;
+  public\controller.html:932:      const gk = `game${s.activeGame}`;
+  public\controller.html:933:      const sc = s.scores[gk];
+  public\controller.html:934:      const hasStarted = gameHistory.length > 0 || (sc && (sc.L > 0 || sc.R > 0));
+  public\controller.html:935:      
+  public\controller.html:936:      if (hasStarted) {
+  public\controller.html:937:        html += `<td class="px-1 py-1 text-center border-r border-slate-300 font-bold 
+text-slate-700">0</td>`;
+  public\controller.html:938:        gameHistory.forEach(h => {
+  public\controller.html:939:          const val = teamCode === 'L' ? h.scoreL : h.scoreR;
+  public\controller.html:940:          const isWinner = h.scorer === teamCode;
+  public\controller.html:941:          html += `<td class="px-1 py-1 text-center border-r border-slate-300 ${isWinner 
+? 'font-black text-slate-900 bg-yellow-100' : 'text-slate-500'}">${val}</td>`;
+  public\controller.html:942:        });
+  public\controller.html:943:        // Fill empty cols to make it look like a table
+  public\controller.html:944:        for(let i = gameHistory.length; i < 30; i++) {
+  public\controller.html:945:          html += `<td class="px-1 py-1 text-center border-r border-slate-300"></td>`;
+  public\controller.html:946:        }
+  public\controller.html:947:      } else {
+  public\controller.html:948:        html += `<td class="px-1 py-1 text-center border-r border-slate-300 
+text-slate-400 italic" colspan="31">Belum ada skor</td>`;
+  public\controller.html:949:      }
+  public\controller.html:950:      
+  public\controller.html:951:      html += `</tr>`;
+  public\controller.html:952:      return html;
+  public\controller.html:953:    };
+  public\controller.html:954:
+  public\controller.html:955:    tbody.innerHTML = renderRow('L', teamName(s.teams.L)) + renderRow('R', 
+teamName(s.teams.R));
+  public\controller.html:956:  }
+  public\controller.html:957:
+  public\controller.html:958:  // ───────────────────────────────────────────
+  public\controller.html:959:  //  SVG Court
+  public\controller.html:960:  // ───────────────────────────────────────────
+> public\controller.html:961:  function updateCourtSVG(s) {
+  public\controller.html:962:    if (!s) return;
+  public\controller.html:963:    const gk = `game${s.activeGame}`;
+  public\controller.html:964:    const sc = s.scores[gk];
+  public\controller.html:965:
+  public\controller.html:966:    // Reset all names
+  public\controller.html:967:    ['L', 'R'].forEach(side => {
+  public\controller.html:968:      ['top', 'bot'].forEach(box => {
+  public\controller.html:969:        const el = $id(`cp-${side}-${box}-txt`);
+  public\controller.html:970:        if(el) el.textContent = '';
+  public\controller.html:971:      });
+  public\controller.html:972:    });
+  public\controller.html:973:
+  public\controller.html:974:    if (!s.serverSide) {
+  public\controller.html:975:      $id('court-arrow-line').setAttribute('opacity', '0');
+  public\controller.html:976:      $id('court-srv-box').setAttribute('width', '0');
+  public\controller.html:977:      $id('court-rcv-box').setAttribute('width', '0');
+  public\controller.html:978:      $id('court-shuttle').setAttribute('opacity', '0');
+  public\controller.html:979:      return;
+  public\controller.html:980:    }
+  public\controller.html:981:
+  public\controller.html:982:    const srv = s.serverSide;
+  public\controller.html:983:    const rcv = srv === 'L' ? 'R' : 'L';
+  public\controller.html:984:    const srvScore = sc[srv];
+  public\controller.html:985:    const isEven = srvScore % 2 === 0;
+  public\controller.html:986:
+  public\controller.html:987:    let srvBox = { x: 0, y: 0, w: 276, h: 140 };
+  public\controller.html:988:    let rcvBox = { x: 0, y: 0, w: 276, h: 140 };
+  public\controller.html:989:
+  public\controller.html:990:    // L team right court is bottom (y=155). R team right court is top (y=15).
+  public\controller.html:991:    if (srv === 'L') {
+  public\controller.html:992:      srvBox.x = 20;  srvBox.y = isEven ? 155 : 15;
+  public\controller.html:993:      rcvBox.x = 304; rcvBox.y = isEven ? 15 : 155; 
+  public\controller.html:994:    } else {
+  public\controller.html:995:      srvBox.x = 304; srvBox.y = isEven ? 15 : 155;
+  public\controller.html:996:      rcvBox.x = 20;  rcvBox.y = isEven ? 155 : 15;
+  public\controller.html:997:    }
+  public\controller.html:998:
+  public\controller.html:999:    const sBox = $id('court-srv-box');
+  public\controller.html:1000:    sBox.setAttribute('x', srvBox.x); sBox.setAttribute('y', srvBox.y);
+  public\controller.html:1001:    sBox.setAttribute('width', srvBox.w); sBox.setAttribute('height', srvBox.h);
+  public\controller.html:1002:
+  public\controller.html:1003:    const rBox = $id('court-rcv-box');
+  public\controller.html:1004:    rBox.setAttribute('x', rcvBox.x); rBox.setAttribute('y', rcvBox.y);
+  public\controller.html:1005:    rBox.setAttribute('width', rcvBox.w); rBox.setAttribute('height', rcvBox.h);
+  public\controller.html:1006:
+  public\controller.html:1007:    const arr = $id('court-arrow-line');
+  public\controller.html:1008:    arr.setAttribute('opacity', '1');
+  public\controller.html:1009:    arr.setAttribute('x1', srvBox.x + srvBox.w/2);
+  public\controller.html:1010:    arr.setAttribute('y1', srvBox.y + srvBox.h/2);
+  public\controller.html:1011:    arr.setAttribute('x2', rcvBox.x + rcvBox.w/2);
+  public\controller.html:1214:  }
+  public\controller.html:1215:
+  public\controller.html:1216:  function acShowAll(inputId, type, listId) {
+  public\controller.html:1217:    const list = $id(listId);
+  public\controller.html:1218:    let all = dbData[type] || [];
+  public\controller.html:1219:    if (type === 'players') {
+  public\controller.html:1220:      const used = getUsedPlayers(inputId);
+  public\controller.html:1221:      all = all.filter(v => !used.includes(v.toLowerCase()));
+  public\controller.html:1222:    }
+  public\controller.html:1223:    all = all.sort((a, b) => a.localeCompare(b, 'id'));
+  public\controller.html:1224:    if (!all.length) { list.innerHTML = '<div class="ac-item" style="color:#64748b">— 
+Database kosong / semua nama sudah dipakai —</div>'; list.classList.remove('hidden'); return; }
+  public\controller.html:1225:    list.innerHTML = all.map(v =>
+  public\controller.html:1226:      `<div class="ac-item" 
+onmousedown="acSelect('${inputId}','${listId}',this.textContent)">${v}</div>`
+  public\controller.html:1227:    ).join('');
+  public\controller.html:1228:    list.classList.remove('hidden');
+  public\controller.html:1229:  }
+  public\controller.html:1230:
+  public\controller.html:1231:  function acSelect(inputId, listId, val) {
+  public\controller.html:1232:    $id(inputId).value = val;
+  public\controller.html:1233:    $id(listId).classList.add('hidden');
+  public\controller.html:1234:    if (inputId.startsWith('p-') && typeof debouncePlayerUpdate === 'function') {
+  public\controller.html:1235:      debouncePlayerUpdate();
+  public\controller.html:1236:    }
+  public\controller.html:1237:  }
+  public\controller.html:1238:
+  public\controller.html:1239:  function acHide(listId, delay) {
+  public\controller.html:1240:    clearTimeout(acTimers[listId]);
+  public\controller.html:1241:    acTimers[listId] = setTimeout(() => {
+  public\controller.html:1242:      const el = $id(listId);
+  public\controller.html:1243:      if (el) el.classList.add('hidden');
+  public\controller.html:1244:    }, delay);
+  public\controller.html:1245:  }
+  public\controller.html:1246:
+  public\controller.html:1247:  // ── Court Visualization ──────────────────────
+  public\controller.html:1248:  let courtVisible = false;
+  public\controller.html:1249:
+  public\controller.html:1250:  function toggleCourt() {
+  public\controller.html:1251:    courtVisible = !courtVisible;
+  public\controller.html:1252:    $id('court-panel').classList.toggle('hidden', !courtVisible);
+  public\controller.html:1253:    $id('court-toggle-icon').textContent = courtVisible ? '▴' : '▾';
+  public\controller.html:1254:    if (courtVisible && currentState) updateCourtSVG(currentState);
+  public\controller.html:1255:  }
+  public\controller.html:1256:
+  public\controller.html:1257:  function svgMove(id, cx, cy) {
+  public\controller.html:1258:    const g = document.getElementById(id);
+  public\controller.html:1259:    if (!g) return;
+  public\controller.html:1260:    g.querySelectorAll('circle').forEach(el => { el.setAttribute('cx', cx); 
+el.setAttribute('cy', cy); });
+  public\controller.html:1261:    g.querySelectorAll('text').forEach(el => { el.setAttribute('x', cx); 
+el.setAttribute('y', cy); });
+  public\controller.html:1262:  }
+  public\controller.html:1263:
+> public\controller.html:1264:  function updateCourtSVG(s) {
+  public\controller.html:1265:    if (!courtVisible) return;
+  public\controller.html:1266:    const gk = `game${s.activeGame}`;
+  public\controller.html:1267:    const scL = s.scores[gk].L;
+  public\controller.html:1268:    const scR = s.scores[gk].R;
+  public\controller.html:1269:    const srv = s.serverSide;
+  public\controller.html:1270:    const rcv = srv === 'L' ? 'R' : 'L';
+  public\controller.html:1271:    const doubles = !!(s.teams.L.player2 && s.teams.R.player2);
+  public\controller.html:1272:    // Server score determines service court: even = right (upper in display), odd = 
+left (lower)
+  public\controller.html:1273:    const srvScore = srv === 'L' ? scL : scR;
+  public\controller.html:1274:    const even = srvScore % 2 === 0;
+  public\controller.html:1275:    // Near-net y positions: upper=85, lower=225
+  public\controller.html:1276:    const srvNearY = even ? 85 : 225;
+  public\controller.html:1277:    const rcvNearY = even ? 225 : 85;  // diagonally opposite
+  public\controller.html:1278:    const partnerY  = even ? 225 : 85; // partner in opposite quadrant (from back)
+  public\controller.html:1279:    const rcvBkY    = even ? 85  : 225;
+  public\controller.html:1280:    // x positions
+  public\controller.html:1281:    const NX = { L: 258, R: 341 }; // near-net x
+  public\controller.html:1282:    const BX = { L: 80,  R: 480 }; // back court x
+  public\controller.html:1283:    // Who serves P1 or P2?
+  public\controller.html:1284:    const p1Serves = !(s.serverP2 && s.serverP2[srv]);
+  public\controller.html:1285:    // Build position map
+  public\controller.html:1286:    const pos = {};
+  public\controller.html:1287:    // Serving side
+  public\controller.html:1288:    pos[`${srv}-${p1Serves ? 1 : 2}`] = { x: NX[srv], y: srvNearY };   // server
+  public\controller.html:1289:    pos[`${srv}-${p1Serves ? 2 : 1}`] = { x: BX[srv], y: partnerY  };  // partner
+  public\controller.html:1290:    // Receiving side (always P1 as receiver for simplicity)
+  public\controller.html:1291:    pos[`${rcv}-1`] = { x: NX[rcv], y: rcvNearY };
+  public\controller.html:1292:    pos[`${rcv}-2`] = { x: BX[rcv], y: rcvBkY   };
+  public\controller.html:1293:    // Singles override: only P1, positioned same way
+  public\controller.html:1294:    if (!doubles) { pos[`${rcv}-1`] = { x: NX[rcv], y: rcvNearY }; }
+  public\controller.html:1295:
+  public\controller.html:1296:    // Update player circles
+  public\controller.html:1297:    for (const side of ['L','R']) {
+  public\controller.html:1298:      const t = s.teams[side];
+  public\controller.html:1299:      const hasP2 = !!t.player2;
+  public\controller.html:1300:      for (const pn of [1,2]) {
+  public\controller.html:1301:        const gId = `cp-${side}-${pn}`;
+  public\controller.html:1302:        const g = document.getElementById(gId);
+  public\controller.html:1303:        if (!g) continue;
+  public\controller.html:1304:        if (pn === 2 && !hasP2) { g.style.display = 'none'; continue; }
+  public\controller.html:1305:        g.style.display = '';
+  public\controller.html:1306:        const p = pos[`${side}-${pn}`] || { x: BX[side], y: 155 };
+  public\controller.html:1307:        svgMove(gId, p.x, p.y);
+  public\controller.html:1308:        // Abbreviate name (initials)
+  public\controller.html:1309:        const name = pn === 1 ? t.player1 : t.player2;
+  public\controller.html:1310:        const abbr = name ? name.split(/\s+/).map(w => 
+w[0]||'').join('').toUpperCase().slice(0,3) : `P${pn}`;
+  public\controller.html:1311:        document.getElementById(`cp-${side}-${pn}-lbl`).textContent = abbr;
+  public\controller.html:1312:        // Server ring
+  public\controller.html:1313:        const isSrv = side === srv && ((pn === 1 && p1Serves) || (pn === 2 && 
+!p1Serves));
+  public\controller.html:1314:        document.getElementById(`cp-${side}-${pn}-ring`).setAttribute('opacity', isSrv ? 
+'1' : '0');
+
+

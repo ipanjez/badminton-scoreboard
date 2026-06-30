@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="/favicon-tutorial.svg" type="image/svg+xml">
   <title>Tutorial — Badminton Scoreboard System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -31,8 +32,8 @@
       <span class="font-black">Badminton Scoreboard — Panduan Penggunaan</span>
     </div>
     <div class="flex gap-2">
-      <a href="/display" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold">← Display</a>
-      <button onclick="window.print()" class="bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold">🖨 Print</button>
+      <a href="/display" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold">← Display</a>      <a href="/controller" class="bg-blue-800 text-white px-4 py-2 rounded-xl text-sm font-bold">🎮 Controller</a>
+      <a href="/viewer" class="bg-slate-700 text-white px-4 py-2 rounded-xl text-sm font-bold">👁 Viewer</a>      <button onclick="window.print()" class="bg-slate-900 text-white px-4 py-2 rounded-xl text-sm font-bold">🖨 Print</button>
     </div>
   </div>
 
@@ -46,14 +47,14 @@
       <p class="text-gray-500 text-sm">Web-Based Badminton Scoreboard &amp; Match Manager</p>
       <div class="mt-4 bg-yellow-50 border border-yellow-300 rounded-xl p-4 text-sm text-left inline-block">
         <strong>Persyaratan:</strong> Tablet/HP sebagai Controller &amp; TV/Monitor sebagai Display.<br>
-        Semua perangkat harus terhubung ke jaringan Wi-Fi yang <strong>sama</strong>.
+        Semua perangkat harus terhubung ke jaringan yang sama (Wi-Fi Router, Hotspot, atau Hybrid LAN+Wi-Fi).
       </div>
     </div>
 
     <!-- Bagian 1: Persiapan Jaringan -->
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print-page print-border">
       <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-        <span class="text-2xl">📡</span> Bagian 1: Persiapan Jaringan Wi-Fi
+        <span class="text-2xl">📡</span> Bagian 1: Persiapan Jaringan (Wi-Fi / LAN)
       </h3>
       <div class="space-y-4">
         <div class="flex gap-3">
@@ -69,9 +70,54 @@
           <div>
             <strong>Hubungkan Semua Perangkat ke Satu Wi-Fi yang sama</strong><br>
             <span class="text-gray-600 text-sm">Tablet wasit, TV (Smart TV/Android TV), dan HP penonton semuanya harus
-            terhubung ke Wi-Fi yang sama di langkah 1 (Opsional: Menggunakan Wi-Fi dari Router). Koneksi internet tidak diperlukan.</span>
+            terhubung ke jaringan yang sama. Koneksi internet tidak diperlukan.</span>
           </div>
         </div>
+
+        <!-- Opsi Konektivitas -->
+        <div class="bg-blue-50 border border-blue-300 rounded-xl p-4 text-sm space-y-3">
+          <div class="font-black text-blue-700">🌐 Opsi Jaringan (Pilih Satu):</div>
+          
+          <div class="grid grid-cols-1 gap-3">
+            <!-- Opsi 1: Hotspot -->
+            <div class="bg-white rounded-lg border border-blue-200 p-3">
+              <strong class="text-blue-600">Opsi A: Hotspot PC (Nirkabel)</strong>
+              <ul class="list-disc pl-4 mt-2 text-gray-700 text-xs space-y-1">
+                <li>PC/Laptop → Aktifkan Hotspot Seluler (Windows Settings)</li>
+                <li>Semua perangkat terhubung via Wi-Fi ke hotspot</li>
+                <li><strong>✓ Keuntungan:</strong> Cepat setup, tidak perlu router</li>
+                <li><strong>⚠ Catatan:</strong> Performa bisa fluktuatif jika ada gangguan Wi-Fi</li>
+              </ul>
+            </div>
+
+            <!-- Opsi 2: Router Wi-Fi -->
+            <div class="bg-white rounded-lg border border-green-200 p-3">
+              <strong class="text-green-600">Opsi B: Router Wi-Fi (Nirkabel) — ⭐ Direkomendasikan</strong>
+              <ul class="list-disc pl-4 mt-2 text-gray-700 text-xs space-y-1">
+                <li>Gunakan router Wi-Fi yang sudah ada (atau beli router murah)</li>
+                <li>PC/Server dan semua perangkat terhubung ke router yang sama</li>
+                <li><strong>✓ Keuntungan:</strong> Performa stabil, jangkauan lebih baik, dukungan lebih banyak devices</li>
+                <li><strong>✓ Rekomendasi:</strong> Opsi terbaik untuk turnamen atau penggunaan jangka panjang</li>
+              </ul>
+            </div>
+
+            <!-- Opsi 3: LAN Kabel -->
+            <div class="bg-white rounded-lg border border-amber-200 p-3">
+              <strong class="text-amber-600">Opsi C: LAN Kabel Ethernet (Hybrid)</strong>
+              <ul class="list-disc pl-4 mt-2 text-gray-700 text-xs space-y-1">
+                <li>PC/Server terhubung via kabel LAN ke router/switch</li>
+                <li>Tablet, TV, HP terhubung via Wi-Fi ke router yang sama</li>
+                <li><strong>✓ Keuntungan:</strong> Server sangat stabil (kabel), devices fleksibel (Wi-Fi)</li>
+                <li><strong>✓ Terbaik untuk:</strong> Arena besar atau lokasi dengan gangguan Wi-Fi</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="text-xs text-gray-600 border-t border-blue-300 pt-2 mt-2">
+            <strong>Perbandingan Kecepatan:</strong> LAN Kabel (Paling cepat & stabil) &gt; Router Wi-Fi (Cepat & stabil) &gt; Hotspot PC (Bergantung sinyal)
+          </div>
+        </div>
+
         <div class="flex gap-3">
           <span class="step-num">3</span>
           <div>

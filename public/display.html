@@ -1,8 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="/favicon-display.svg" type="image/svg+xml">
   <title>Badminton Score Display</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -246,6 +247,7 @@
 
       // Player names
       const maxFontSizeVar = s.displayNameFontSize || 84;
+      const maxClubFontSizeVar = s.displayClubFontSize || 40;
       
       for (let i = 1; i <= 2; i++) {
         const wrapEl = $id(`wrap-p${i}-${side}`);
@@ -276,6 +278,8 @@
       const clubEl = $id(`club-${side}`);
       clubEl.textContent   = t.club || '';
       clubEl.style.display = t.club ? 'inline-block' : 'none';
+      // Club name font size from displayClubFontSize
+      if (s.displayClubFontSize) clubEl.style.fontSize = `${s.displayClubFontSize}px`;
 
       // Score box
       const scEl = $id(`score-${side}`);

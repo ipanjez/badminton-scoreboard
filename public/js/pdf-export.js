@@ -1,4 +1,4 @@
-﻿/**
+/**
  * pdf-export.js — BWF Official Score Sheet (v2)
  * Matches layout of Badminton Tournament Planner score sheets.
  * Landscape A4 (297 × 210 mm)
@@ -6,7 +6,9 @@
  * Header: Title bar | Info row | L-Team box | Score table | R-Team box
  * Grid:   Doubles = 4 rows/game (2 per side); Singles = 2 rows/game
  * Cells:  60 timeline columns × 4 mm — score written chronologically L→R
- * Marks:  Red circle at interval (11) and game-winning point; blue diagonal for service over
+ * Marks:  Red circle at interval (11) and game-winning point
+ *         Score placed on the ROW of the player who is serving (for server team)
+ *         and on the ROW of the player who is receiving (for receiver team)
  */
 
 /* ─── Page / Grid Constants ─── */
@@ -17,7 +19,7 @@ const PDF = {
   SR_W: 7,
   CELL_W: 4,
   MAX_COL: 60,
-  get GRID_X() { return this.ML + this.NAME_W + this.SR_W; }
+  get GRID_X() { return this.ML + this.NAME_W + this.SR_W + this.CELL_W; }
 };
 
 /* ─── Helpers ─── */
@@ -29,14 +31,19 @@ function fmtDate(iso) {
 }
 function fmtTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 function fmtDuration(s, e) {
   if (!s || !e) return '—';
   const ms = new Date(e) - new Date(s);
   if (ms <= 0) return '—';
-  const m = Math.floor(ms / 60000);
-  return m >= 60 ? Math.floor(m / 60) + 'j ' + (m % 60) + 'm' : m + ' menit';
+  const totalSec = Math.floor(ms / 1000);
+  const sec = totalSec % 60;
+  const totalMin = Math.floor(totalSec / 60);
+  const min = totalMin % 60;
+  const hrs = Math.floor(totalMin / 60);
+  if (hrs > 0) return `${hrs}j ${min}m ${sec}d`;
+  return `${min}m ${sec}d`;
 }
 function teamLabel(team) {
   return [team.player1, team.player2].filter(Boolean).join(' / ') || '—';
@@ -57,7 +64,12 @@ function generateScoreSheet(state) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-  const isDoubles = !!(state.teams.L.player2 || state.teams.R.player2);
+  // Resolve startTime: use matchTimerStart as fallback if startTime not yet set
+  const s = Object.assign({}, state, {
+    startTime: state.startTime || (state.matchTimerStart ? new Date(state.matchTimerStart).toISOString() : null)
+  });
+
+  const isDoubles = !!(s.teams.L.player2 || s.teams.R.player2);
   const DROW_H    = isDoubles ? 7 : 13;
   const rowsPerSide = isDoubles ? 2 : 1;
   const GAME_H    = 5 + 4 + DROW_H * rowsPerSide * 2;
@@ -71,13 +83,13 @@ function generateScoreSheet(state) {
   doc.setDrawColor(0);
   doc.setTextColor(0);
 
-  drawHeaderPDF(doc, state);
-  for (let g = 1; g <= 3; g++) drawGamePDF(doc, state, g, gY(g), isDoubles, DROW_H, rowsPerSide);
-  drawFooterPDF(doc, state, FOOTER_Y);
+  drawHeaderPDF(doc, s);
+  for (let g = 1; g <= 3; g++) drawGamePDF(doc, s, g, gY(g), isDoubles, DROW_H, rowsPerSide);
+  drawFooterPDF(doc, s, FOOTER_Y);
 
   const fname = 'ScoreSheet_' +
-    (state.tournament || 'Match').replace(/\s+/g, '_') + '_' +
-    fmtDate(state.startTime).replace(/[\s/]/g, '-') + '.pdf';
+    (s.tournament || 'Match').replace(/\s+/g, '_') + '_' +
+    fmtDate(s.startTime).replace(/[\s/]/g, '-') + '.pdf';
   doc.save(fname);
 }
 
@@ -114,6 +126,13 @@ function drawHeaderPDF(doc, state) {
     '   |   Time: ' + fmtTime(state.startTime),
     ML + 2, IY + 3.5
   );
+  doc.text(
+    'Court: ' + (state.court || '\u2014') +
+    '   Start: ' + fmtTime(state.startTime) +
+    '   End: ' + fmtTime(state.endTime) +
+    '   Dur: ' + fmtDuration(state.startTime, state.endTime),
+    W - MR - 2, IY + 3.5, { align: 'right' }
+  );
   doc.setTextColor(0);
 
   /* 3. Main section: L Team | Score Table | R Team */
@@ -146,7 +165,7 @@ function drawHeaderPDF(doc, state) {
   doc.setTextColor(60, 85, 140);
   doc.text((tL.club || '').slice(0, 32), LX + 13, MY + 18);
   doc.setTextColor(0);
-  if (state.winner === 'L') _winBadge(doc, LX + LW - 27, MY + MH - 7);
+  if (state.winner === 'L') _winBadge(doc, LX + LW - 27, MY + MH - 7, state.isWalkover);
 
   /* ── Center Score Table ── */
   const colWs  = [CW * 0.40, CW * 0.15, CW * 0.15, CW * 0.15, CW * 0.15];
@@ -236,21 +255,7 @@ function drawHeaderPDF(doc, state) {
   doc.text((tR.club || '').slice(0, 29), RX + 13, MY + 18);
   doc.setTextColor(0);
 
-  /* Court / time info — compact 2-line at bottom of R box */
-  const cY = MY + MH - 8;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6);
-  doc.setTextColor(40, 55, 120);
-  doc.text(
-    'Court: ' + (state.court || '\u2014') + '   Start: ' + fmtTime(state.startTime),
-    RX + 2, cY
-  );
-  doc.text(
-    'End: ' + fmtTime(state.endTime) + '   Dur: ' + fmtDuration(state.startTime, state.endTime),
-    RX + 2, cY + 3.5
-  );
-  doc.setTextColor(0);
-  if (state.winner === 'R') _winBadge(doc, RX + RW - 27, MY + MH - 7);
+  if (state.winner === 'R') _winBadge(doc, RX + RW - 27, MY + MH - 7, state.isWalkover);
 
   /* Outer border + vertical dividers */
   doc.setDrawColor(70, 95, 165);
@@ -260,22 +265,15 @@ function drawHeaderPDF(doc, state) {
   doc.line(RX, MY, RX, MY + MH);
   doc.setDrawColor(0);
   doc.setLineWidth(0.2);
-
-  /* Bottom rule */
-  doc.setDrawColor(50, 75, 160);
-  doc.setLineWidth(0.7);
-  doc.line(ML, MY + MH + 2, W - MR, MY + MH + 2);
-  doc.setDrawColor(0);
-  doc.setLineWidth(0.2);
 }
 
-function _winBadge(doc, x, y) {
-  doc.setFillColor(22, 163, 74);
+function _winBadge(doc, x, y, isWalkover) {
+  doc.setFillColor(isWalkover ? 180 : 22, isWalkover ? 60 : 163, isWalkover ? 0 : 74);
   doc.rect(x, y, 25, 6, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6);
   doc.setTextColor(255, 255, 255);
-  doc.text('WINNER', x + 12.5, y + 4.2, { align: 'center' });
+  doc.text(isWalkover ? 'W.O.' : 'WINNER', x + 12.5, y + 4.2, { align: 'center' });
   doc.setTextColor(0);
 }
 
@@ -302,12 +300,11 @@ function drawGamePDF(doc, state, gameNum, startY, isDoubles, DROW_H, rowsPerSide
   doc.text('Skor: ' + sc.L + ' \u2013 ' + sc.R, W / 2, startY + 3.6, { align: 'center' });
   const gWin = checkWinPDF(sc.L, sc.R);
   if (gWin) {
-    const winner = gWin === 'L' ? (state.teams.L.player1 || 'Tim L') : (state.teams.R.player1 || 'Tim R');
     doc.text('[ ' + gWin + ' Menang ]', W - MR - 2, startY + 3.6, { align: 'right' });
   }
   doc.setTextColor(0);
 
-  /* Column number header */
+  /* Column number header — starts at 0 */
   const numY = startY + TITLE_H;
   doc.setFillColor(195, 210, 235);
   doc.rect(ML, numY, NAME_W, NUM_H, 'FD');
@@ -321,7 +318,16 @@ function drawGamePDF(doc, state, gameNum, startY, isDoubles, DROW_H, rowsPerSide
   doc.text('S/R', ML + NAME_W + SR_W / 2, numY + 3, { align: 'center' });
   doc.setTextColor(0);
 
-  for (let c = 0; c < MAX_COL; c++) {
+  /* Column 0 header (initial state) */
+  const col0x = GRID_X - CELL_W;
+  doc.setFillColor(175, 195, 225);
+  doc.rect(col0x, numY, CELL_W, NUM_H, 'FD');
+  doc.setFontSize(4.2);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(55, 70, 120);
+  doc.text('0', col0x + CELL_W / 2, numY + 2.9, { align: 'center' });
+
+  for (let c = 0; c < MAX_COL - 1; c++) {
     const cx = GRID_X + c * CELL_W;
     const isFive = (c + 1) % 5 === 0;
     doc.setFillColor(isFive ? 190 : 218, isFive ? 202 : 228, isFive ? 235 : 248);
@@ -358,30 +364,47 @@ function drawGamePDF(doc, state, gameNum, startY, isDoubles, DROW_H, rowsPerSide
       doc.setTextColor(0);
     }
 
-    /* S/R cell — only show S on the FIRST row of the serving side */
+    /* S/R cell — only show on the FIRST row of each side, at the start */
     const isFirstRow = ri === (isL ? 0 : rowsPerSide);
     const isSrv = rd.side === initSrv && isFirstRow;
+    const isRcv = rd.side !== initSrv && isFirstRow;
     doc.setFillColor(isSrv ? 255 : 238, isSrv ? 248 : 238, isSrv ? 195 : 255);
     doc.rect(ML + NAME_W, ry, SR_W, DROW_H, 'FD');
-    if (isFirstRow) {
+    if (isSrv) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setTextColor(isSrv ? 0 : 160, isSrv ? 100 : 0, 0);
-      doc.text(isSrv ? 'S' : 'R', ML + NAME_W + SR_W / 2, ry + DROW_H / 2 + 2.5, { align: 'center' });
+      doc.setTextColor(0, 100, 0);
+      doc.text('S', ML + NAME_W + SR_W / 2, ry + DROW_H / 2 + 2.5, { align: 'center' });
+      doc.setTextColor(0);
+    } else if (isRcv) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(160, 0, 0);
+      doc.text('R', ML + NAME_W + SR_W / 2, ry + DROW_H / 2 + 2.5, { align: 'center' });
       doc.setTextColor(0);
     }
 
-    /* Score cells */
-    for (let c = 0; c < MAX_COL; c++) {
+    /* Score cells + column 0 with initial score "0" */
+    const isFirstTeamRow = (ri === 0 && rd.side === 'L') || (ri === rowsPerSide && rd.side === 'R');
+    const col0rx = GRID_X - CELL_W;
+    doc.setFillColor(245, 248, 255);
+    doc.rect(col0rx, ry, CELL_W, DROW_H, 'FD');
+    if (isFirstTeamRow) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5.5);
+      doc.setTextColor(60, 80, 140);
+      doc.text('0', col0rx + CELL_W / 2, ry + DROW_H / 2 + 1.5, { align: 'center' });
+      doc.setTextColor(0);
+    }
+    for (let c = 0; c < MAX_COL - 1; c++) {
       doc.setFillColor(255, 255, 255);
       doc.rect(GRID_X + c * CELL_W, ry, CELL_W, DROW_H, 'FD');
     }
   });
 
-  /* Score entries */
-  const rIdx = (side) => (side === 'L' ? 0 : rowsPerSide);
-  const rowY  = (side) => startY + TITLE_H + NUM_H + rIdx(side) * DROW_H;
-  _drawEntries(doc, gh, rowY('L'), rowY('R'), DROW_H);
+  /* Score entries — placed on correct player rows */
+  const baseY = startY + TITLE_H + NUM_H;
+  _drawEntries(doc, gh, baseY, DROW_H, isDoubles, rowsPerSide);
 }
 
 function _buildRows(state, isDoubles) {
@@ -402,19 +425,48 @@ function _buildRows(state, isDoubles) {
 /* ══════════════════════════════════════════════
    SCORE ENTRIES  (BWF Timeline Notation)
    Each entry = one timeline column (left → right).
-   Score number written in scorer's row.
+   Score placed on the server's row (for server team) and receiver's row (for receiver team).
    Red circle at interval (11) and game-winning point.
-   Blue diagonal arrow at service-over transition.
+   No blue diagonal lines.
    ══════════════════════════════════════════════ */
-function _drawEntries(doc, gh, rowLY, rowRY, DROW_H) {
+function _drawEntries(doc, gh, baseY, DROW_H, isDoubles, rowsPerSide) {
   const { GRID_X, CELL_W, MAX_COL } = PDF;
   if (!gh || !gh.length) return;
 
   gh.forEach((entry, col) => {
-    if (col >= MAX_COL) return;
+    if (col >= MAX_COL - 1) return;
     const isL  = entry.scorer === 'L';
-    const rowY = isL ? rowLY : rowRY;
     const sc   = isL ? entry.scoreL : entry.scoreR;
+
+    // Determine which row to place the score on
+    let rowOffset;
+    if (isDoubles) {
+      // Server side info
+      const srvSide = entry.serverSide || entry.prevServer;
+      const srvPlayerIdx = entry.serverPlayerIndex || 1; // 1 or 2
+
+      if (entry.scorer === srvSide) {
+        // Server's team scored — place on server's row
+        rowOffset = (srvSide === 'L' ? 0 : rowsPerSide) + (srvPlayerIdx - 1);
+      } else {
+        // Receiver's team scored — place on receiver's row
+        // Receiver is on the opposite side. In doubles, the receiver is
+        // diagonally opposite, so if server is player 1, receiver gets row offset 1, etc.
+        // But we simplify: the receiver's row alternates based on server's score (even/odd)
+        const rcvSide = srvSide === 'L' ? 'R' : 'L';
+        // The receiver player index: in BWF doubles, the receiving position alternates.
+        // Since we don't track this directly, we use a simple heuristic:
+        // Place on player 1 row if even score, player 2 row if odd score of the receiver
+        const rcvScore = rcvSide === 'L' ? entry.prevL : entry.prevR;
+        const rcvPlayerRow = (rcvScore % 2 === 0) ? 0 : 1;
+        rowOffset = (rcvSide === 'L' ? 0 : rowsPerSide) + rcvPlayerRow;
+      }
+    } else {
+      // Singles: simple, just the team row
+      rowOffset = isL ? 0 : rowsPerSide;
+    }
+
+    const rowY = baseY + rowOffset * DROW_H;
     const cx   = GRID_X + col * CELL_W + CELL_W / 2;
     const cy   = rowY + DROW_H / 2;
 
@@ -440,19 +492,7 @@ function _drawEntries(doc, gh, rowLY, rowRY, DROW_H) {
       doc.setDrawColor(0); doc.setLineWidth(0.2);
     }
 
-    /* Service Over — blue diagonal */
-    if (entry.isServiceOver) {
-      const cellX   = GRID_X + col * CELL_W;
-      const otherY  = isL ? rowRY : rowLY;
-      doc.setDrawColor(0, 80, 200);
-      doc.setLineWidth(0.6);
-      if (isL) {
-        doc.line(cellX + 0.5, otherY + DROW_H - 1, cellX + CELL_W - 0.5, rowY + 1);
-      } else {
-        doc.line(cellX + 0.5, otherY + 1, cellX + CELL_W - 0.5, rowY + DROW_H - 1);
-      }
-      doc.setDrawColor(0); doc.setLineWidth(0.2);
-    }
+    /* No blue diagonal lines — removed as requested */
   });
 }
 
@@ -472,15 +512,20 @@ function drawFooterPDF(doc, state, footerY) {
   doc.setFontSize(8);
   doc.setTextColor(25, 50, 110);
   doc.text('Mulai: ' + fmtTime(state.startTime), ML, fY + 6.5);
-  doc.text('Selesai: ' + fmtTime(state.endTime), ML + 38, fY + 6.5);
-  doc.text('Durasi: ' + fmtDuration(state.startTime, state.endTime), ML + 80, fY + 6.5);
+  doc.text('Selesai: ' + fmtTime(state.endTime), ML + 32, fY + 6.5);
+  doc.text('Durasi: ' + fmtDuration(state.startTime, state.endTime), ML + 68, fY + 6.5);
+  const totalKok = state.shuttlecocks ? (state.shuttlecocks.L || 0) + (state.shuttlecocks.R || 0) : 0;
+  const chalL = state.challenges ? state.challenges.L : 2;
+  const chalR = state.challenges ? state.challenges.R : 2;
+  doc.text('Kok: ' + totalKok + '  |  Chal: L=' + chalL + ' R=' + chalR, ML + 105, fY + 6.5);
   if (state.winner) {
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 120, 0);
+    doc.setTextColor(state.isWalkover ? 160 : 0, state.isWalkover ? 60 : 120, 0);
     doc.text(
       'Pemenang: ' + teamLabel(state.teams[state.winner]) +
-      '  (' + state.gamesWon.L + '\u2013' + state.gamesWon.R + ')',
-      ML + 130, fY + 6.5
+      '  (' + state.gamesWon.L + '\u2013' + state.gamesWon.R + ')' +
+      (state.isWalkover ? '  \u2014 WALKOVER' : ''),
+      W - MR - 2, fY + 6.5, { align: 'right' }
     );
     doc.setTextColor(0);
   }
@@ -489,7 +534,7 @@ function drawFooterPDF(doc, state, footerY) {
   /* Signature boxes */
   const sigTop = fY + 11;
   const sigW = 65, sigH = 32;
-  [['Wasit / Umpire', state.umpire], ['Referee', '']].forEach(([label, name], i) => {
+  [['Wasit / Umpire', state.umpire], ['Referee', state.serviceJudge || '']].forEach(([label, name], i) => {
     const sx = ML + i * (sigW + 12);
     doc.setDrawColor(100, 120, 170);
     doc.rect(sx, sigTop, sigW, sigH);

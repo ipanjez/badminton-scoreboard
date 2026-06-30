@@ -4,6 +4,7 @@
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
+const { autoExportPDF } = require('./pdf-server');
 
 // ── pkg standalone detection ──
 // When running as .exe (pkg), process.pkg is defined.
@@ -69,7 +70,7 @@ function requireAuth(req, res, next) {
 // ─────────────────────────────────────────────
 const DB_XLSX = path.join(BASE_DIR, 'database.xlsx');
 const DB_JSON = path.join(BASE_DIR, 'database.json'); // legacy fallback
-let db = { players: [], clubs: [], umpires: [] };
+let db = { players: [], clubs: [], umpires: [], tournaments: [], courts: [], matchNumbers: [] };
 
 function sheetToList(wb, name) {
   const ws = wb.Sheets[name];
@@ -82,9 +83,12 @@ function loadDB() {
   try {
     if (fs.existsSync(DB_XLSX)) {
       const wb   = XLSX.readFile(DB_XLSX);
-      db.players = sheetToList(wb, 'Pemain');
-      db.clubs   = sheetToList(wb, 'Klub');
-      db.umpires = sheetToList(wb, 'Wasit');
+      db.players     = sheetToList(wb, 'Pemain');
+      db.clubs       = sheetToList(wb, 'Klub');
+      db.umpires     = sheetToList(wb, 'Wasit');
+      db.tournaments = sheetToList(wb, 'Turnamen');
+      db.courts      = sheetToList(wb, 'Lapangan');
+      db.matchNumbers= sheetToList(wb, 'NoPartai');
       return;
     }
     // Migrate from legacy JSON
@@ -104,16 +108,20 @@ function saveDB() {
     const mkSheet = (list, hdr) =>
       XLSX.utils.aoa_to_sheet([[hdr], ...list.sort((a,b)=>a.localeCompare(b,'id')).map(v => [v])]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.players, 'Nama Pemain'),   'Pemain');
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.clubs,   'Nama Klub / PB'),'Klub');
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.umpires, 'Nama Wasit'),    'Wasit');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.players,      'Nama Pemain'),      'Pemain');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.clubs,        'Nama Klub / PB'),   'Klub');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.umpires,      'Nama Wasit'),       'Wasit');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.tournaments,  'Nama Turnamen'),    'Turnamen');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.courts,       'Nama Lapangan'),    'Lapangan');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.matchNumbers, 'No. Partai'),       'NoPartai');
     XLSX.writeFile(wb, DB_XLSX);
   } catch (e) { console.error('[DB] Save error:', e.message); }
 }
 
 function dbAdd(type, value) {
   const v = String(value || '').trim().slice(0, 100);
-  if (!v || !db[type]) return;
+  if (!v) return;
+  if (!db[type]) db[type] = [];
   if (!db[type].includes(v)) { db[type].push(v); saveDB(); }
 }
 
@@ -138,6 +146,12 @@ fs.watchFile(DB_XLSX, { interval: 2000 }, (curr, prev) => {
 // ─────────────────────────────────────────────
 function createState() {
   return {
+    isSetupComplete: false,
+    isMatchStarted: false,
+    matchTimerStart: null,
+    challenges: { L: 2, R: 2 },
+    shuttlecocks: { L: 0, R: 0 },
+    pdfExported: false,
     tournament:   '',
     category:     'MS',
     court:        '',
@@ -162,10 +176,13 @@ function createState() {
     intervalDone: { game1: false, game2: false, game3: false },
     isMatchOver:  false,
     winner:       null,
+    isWalkover:   false,
     // Display configuration
     displayNameFontSize: 84,
+    displayClubFontSize: 40,
     // ID of the player currently serving (1 or 2)
     serverP2:     { L: false, R: false },
+    lastServerId: { L: 1, R: 1 }, // Used for doubles rotation
     // History entry shape:
     // { id, game, time, scorer, scoreL, scoreR,
     //   prevL, prevR, prevServer,
@@ -199,8 +216,26 @@ function addPoint(side) {
   const prevSrv   = state.serverSide;
   const isServOvr = side !== prevSrv;
 
+  // Record which player was serving BEFORE any rotation
+  const prevServerPlayerIndex = prevSrv
+    ? (prevSrv === 'L' ? (state.serverP2.L ? 2 : 1) : (state.serverP2.R ? 2 : 1))
+    : 1;
+
   sc[side]++;
-  if (isServOvr) state.serverSide = side;
+  if (isServOvr) {
+    state.serverSide = side;
+    // BWF doubles: when regaining service, server is determined by the team's
+    // score BEFORE this point (same parity logic used by the scoresheet display).
+    // Even prev-score → player 1 serves; odd → player 2.
+    if (state.teams[side].player2) {
+      const prevTeamScore = side === 'L' ? prevL : prevR;
+      const nextServer = (prevTeamScore % 2 === 0) ? 1 : 2;
+      state.serverP2[side] = (nextServer === 2);
+      state.lastServerId[side] = nextServer;
+    }
+  }
+  // BWF: serving team retaining service keeps the SAME server —
+  // physical positions swap on court but serverP2/lastServerId stay unchanged.
 
   // Interval: first time either team reaches 11 in this game
   let isIntervalNow = false;
@@ -222,6 +257,12 @@ function addPoint(side) {
       state.isMatchOver   = true;
       state.winner        = winner;
       state.endTime       = new Date().toISOString();
+      // Auto-export PDF after state is fully pushed to history
+      setImmediate(() => {
+        const fpath = autoExportPDF(JSON.parse(JSON.stringify(state)), BASE_DIR);
+        const fname = fpath ? require('path').basename(fpath) : null;
+        io.emit('pdf_auto_exported', { ok: !!fpath, file: fname });
+      });
     }
   }
 
@@ -235,8 +276,12 @@ function addPoint(side) {
     prevL,
     prevR,
     prevServer:   prevSrv,
+    serverSide:   prevSrv,
     serverP2L:    state.serverP2.L, // store to restore
     serverP2R:    state.serverP2.R,
+    lastServerIdL: state.lastServerId.L,
+    lastServerIdR: state.lastServerId.R,
+    serverPlayerIndex: prevServerPlayerIndex,
     isServiceOver: isServOvr,
     isInterval:   isIntervalNow,
     isGameWin,
@@ -259,6 +304,8 @@ function undoLast() {
   state.serverSide = last.prevServer;
   if ('serverP2L' in last) state.serverP2.L = last.serverP2L;
   if ('serverP2R' in last) state.serverP2.R = last.serverP2R;
+  if ('lastServerIdL' in last) state.lastServerId.L = last.lastServerIdL;
+  if ('lastServerIdR' in last) state.lastServerId.R = last.lastServerIdR;
   state.activeGame = last.game;
 
   // Restore interval
@@ -282,7 +329,7 @@ function broadcast() { io.emit('state_update', state); }
 // ─────────────────────────────────────────────
 const PUB = (f) => path.join(BASE_DIR, 'public', f);
 
-app.get('/', (_, res) => res.redirect('/display'));
+app.get('/', (_, res) => res.redirect('/launcher'));
 
 // Auth
 app.get('/login', (req, res) => {
@@ -308,6 +355,7 @@ app.post('/logout', requireAuth, (req, res) => {
 // Public pages
 app.get('/display',    (_, res) => res.sendFile(PUB('display.html')));
 app.get('/viewer',     (_, res) => res.sendFile(PUB('viewer.html')));
+app.get('/launcher',   (_, res) => res.sendFile(PUB('launcher.html')));
 app.get('/tutorial',   requireAuth, (_, res) => res.sendFile(PUB('tutorial.html')));
 
 // Protected pages
@@ -329,10 +377,30 @@ app.get('/api/info', (_, res) => {
   res.json({ port: PORT, localIPs });
 });
 
+// Launcher status — public, combines info + court ports (no PINs exposed)
+app.get('/api/launcher-status', (_, res) => {
+  const localIPs = Object.values(os.networkInterfaces())
+    .flat()
+    .filter(i => i && i.family === 'IPv4' && !i.internal)
+    .map(i => i.address);
+  const courts = [];
+  for (let i = 1; i <= 6; i++) {
+    const f = path.join(BASE_DIR, `.env.court${i}`);
+    if (fs.existsSync(f)) {
+      const c    = fs.readFileSync(f, 'utf8');
+      const port = (c.match(/PORT=(.+)/) || [])[1]?.trim() || String(3000 + i);
+      courts.push({ num: i, port: parseInt(port, 10), active: true });
+    } else {
+      courts.push({ num: i, port: 3000 + i, active: false });
+    }
+  }
+  res.json({ port: PORT, localIPs, courts });
+});
+
 // Add item to DB (from manage page)
 app.post('/api/db/add', requireAuth, (req, res) => {
   const { type, value } = req.body;
-  if (!['players','clubs','umpires'].includes(type))
+  if (!['players','clubs','umpires','tournaments','courts','matchNumbers'].includes(type))
     return res.status(400).json({ ok: false });
   dbAdd(type, String(value || '').trim());
   res.json({ ok: true, db });
@@ -341,7 +409,7 @@ app.post('/api/db/add', requireAuth, (req, res) => {
 // Remove item from DB
 app.post('/api/db/remove', requireAuth, (req, res) => {
   const { type, value } = req.body;
-  if (!['players','clubs','umpires'].includes(type))
+  if (!['players','clubs','umpires','tournaments','courts','matchNumbers'].includes(type))
     return res.status(400).json({ ok: false });
   dbRemove(type, String(value || '').trim());
   res.json({ ok: true, db });
@@ -365,14 +433,69 @@ app.post('/api/config/pin', requireAuth, (req, res) => {
 
 // Update display font size
 app.post('/api/config/display-font', requireAuth, (req, res) => {
-  const { size } = req.body;
-  if (size && !isNaN(size)) {
-    state.displayNameFontSize = parseInt(size, 10);
+  const { nameSize, clubSize } = req.body;
+  let updated = false;
+  if (nameSize !== undefined && !isNaN(nameSize)) {
+    state.displayNameFontSize = parseInt(nameSize, 10);
+    updated = true;
+  }
+  if (clubSize !== undefined && !isNaN(clubSize)) {
+    state.displayClubFontSize = parseInt(clubSize, 10);
+    updated = true;
+  }
+  if (updated) {
     broadcast();
     res.json({ ok: true });
   } else {
     res.status(400).json({ ok: false });
   }
+});
+
+// Setup match info
+app.post('/api/setup', requireAuth, (req, res) => {
+  const b = req.body;
+  state.tournament   = String(b.tournament   || '').trim().slice(0, 100);
+  state.category     = CATEGORIES.includes(b.category) ? b.category : 'MS';
+  state.court        = String(b.court        || '').trim().slice(0, 20);
+  state.matchNo      = String(b.matchNo      || '').trim().slice(0, 20);
+  state.umpire       = String(b.umpire       || '').trim().slice(0, 100);
+  state.serviceJudge = String(b.serviceJudge || '').trim().slice(0, 100);
+
+  if (b.umpire) dbAdd('umpires', b.umpire);
+  if (b.serviceJudge) dbAdd('umpires', b.serviceJudge);
+  if (b.tournament) dbAdd('tournaments', b.tournament);
+  if (b.court) dbAdd('courts', b.court);
+  if (b.matchNo) dbAdd('matchNumbers', b.matchNo);
+
+  state.isSetupComplete = true;
+  broadcast();
+  res.json({ ok: true, state });
+});
+
+// Setup players real-time
+app.post('/api/setup-player', requireAuth, (req, res) => {
+  const b = req.body;
+  
+  if (b.category && CATEGORIES.includes(b.category)) {
+    state.category = b.category;
+  }
+  
+  ['L', 'R'].forEach(side => {
+    const t = b[`team${side}`];
+    if (t) {
+      if (t.player1 !== undefined) state.teams[side].player1 = String(t.player1).trim().slice(0, 100);
+      if (t.player2 !== undefined) state.teams[side].player2 = String(t.player2).trim().slice(0, 100);
+      if (t.club !== undefined)    state.teams[side].club    = String(t.club).trim().slice(0, 100);
+      if (t.flag !== undefined)    state.teams[side].flag    = String(t.flag).trim().slice(0, 10);
+      
+      // Auto-add to DB
+      [t.player1, t.player2].filter(Boolean).forEach(p => dbAdd('players', p));
+      if (t.club) dbAdd('clubs', t.club);
+    }
+  });
+
+  broadcast();
+  res.json({ ok: true, state });
 });
 
 // Read court configs
@@ -408,33 +531,7 @@ app.post('/api/courts/save', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Setup match info
-app.post('/api/setup', requireAuth, (req, res) => {
-  const b = req.body;
-  state.tournament   = String(b.tournament   || '').trim().slice(0, 100);
-  state.category     = CATEGORIES.includes(b.category) ? b.category : 'MS';
-  state.court        = String(b.court        || '').trim().slice(0, 20);
-  state.matchNo      = String(b.matchNo      || '').trim().slice(0, 20);
-  state.umpire       = String(b.umpire       || '').trim().slice(0, 100);
-  state.serviceJudge = String(b.serviceJudge || '').trim().slice(0, 100);
 
-  ['L', 'R'].forEach(side => {
-    const t = b[`team${side}`] || {};
-    state.teams[side].player1 = String(t.player1 || '').trim().slice(0, 100);
-    state.teams[side].player2 = String(t.player2 || '').trim().slice(0, 100);
-    state.teams[side].club    = String(t.club    || '').trim().slice(0, 100);
-    state.teams[side].flag    = String(t.flag    || '').trim().slice(0, 10);
-    // Auto-add to DB
-    [t.player1, t.player2].filter(Boolean).forEach(p => dbAdd('players', p));
-    if (t.club) dbAdd('clubs', t.club);
-  });
-  if (b.umpire)       dbAdd('umpires', b.umpire);
-  if (b.serviceJudge) dbAdd('umpires', b.serviceJudge);
-  if (!state.startTime) state.startTime = new Date().toISOString();
-
-  broadcast();
-  res.json({ ok: true });
-});
 
 // Add point
 app.post('/api/point', requireAuth, (req, res) => {
@@ -461,11 +558,40 @@ app.post('/api/serve', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/shuttlecock', requireAuth, (req, res) => {
+  const { side, change } = req.body;
+  if (!['L', 'R'].includes(side)) return res.status(400).json({ ok: false });
+  if (!state.shuttlecocks) state.shuttlecocks = { L: 0, R: 0 };
+  state.shuttlecocks[side] = Math.max(0, state.shuttlecocks[side] + change);
+  broadcast();
+  res.json({ ok: true });
+});
+
+app.post('/api/edit-challenge', requireAuth, (req, res) => {
+  const { side, change } = req.body;
+  if (!['L', 'R'].includes(side)) return res.status(400).json({ ok: false });
+  if (!state.challenges) state.challenges = { L: 2, R: 2 };
+  state.challenges[side] = Math.max(0, state.challenges[side] + change);
+  broadcast();
+  res.json({ ok: true });
+});
+
+app.post('/api/set-specific-server', requireAuth, (req, res) => {
+  const { side, playerId } = req.body;
+  if (!['L', 'R'].includes(side)) return res.status(400).json({ ok: false });
+  state.serverSide = side;
+  state.serverP2[side] = (playerId === 2);
+  state.lastServerId[side] = playerId;
+  broadcast();
+  res.json({ ok: true });
+});
+
 // Toggle which player is serving
 app.post('/api/toggle-server', requireAuth, (req, res) => {
   const { side } = req.body;
   if (!['L', 'R'].includes(side)) return res.status(400).json({ ok: false });
   state.serverP2[side] = !state.serverP2[side];
+  state.lastServerId[side] = state.serverP2[side] ? 2 : 1;
   broadcast();
   res.json({ ok: true });
 });
@@ -476,6 +602,7 @@ app.post('/api/next-game', requireAuth, (req, res) => {
   if (state.isMatchOver)      return res.status(400).json({ ok: false, msg: 'Match selesai' });
   state.activeGame++;
   state.isInterval = false;
+  state.challenges = { L: 2, R: 2 }; // Reset challenges per game
   broadcast();
   res.json({ ok: true });
 });
@@ -490,6 +617,68 @@ app.post('/api/dismiss-interval', requireAuth, (req, res) => {
 // Reset full match
 app.post('/api/reset', requireAuth, (req, res) => {
   state = createState();
+  broadcast();
+  res.json({ ok: true });
+});
+
+app.post('/api/start-match', requireAuth, (req, res) => {
+  state.isMatchStarted = true;
+  if (!state.matchTimerStart) state.matchTimerStart = Date.now();
+  if (!state.startTime) state.startTime = new Date().toISOString();
+  broadcast();
+  res.json({ ok: true });
+});
+
+app.post('/api/walkover', requireAuth, (req, res) => {
+  const { side } = req.body;
+  state.isMatchOver = true;
+  state.isWalkover  = true;
+  state.winner = side;
+  state.endTime = new Date().toISOString();
+  broadcast();
+  // Auto-export PDF on walkover
+  setImmediate(() => {
+    const fpath = autoExportPDF(JSON.parse(JSON.stringify(state)), BASE_DIR);
+    const fname = fpath ? require('path').basename(fpath) : null;
+    io.emit('pdf_auto_exported', { ok: !!fpath, file: fname });
+  });
+  res.json({ ok: true });
+});
+
+// Manual time adjustment (start/end)
+app.post('/api/adjust-time', requireAuth, (req, res) => {
+  const { startTime, endTime } = req.body;
+  let updated = false;
+  if (startTime) {
+    const d = new Date(startTime);
+    if (!isNaN(d.getTime())) {
+      state.startTime = d.toISOString();
+      state.matchTimerStart = d.getTime();
+      updated = true;
+    }
+  }
+  if (endTime) {
+    const d = new Date(endTime);
+    if (!isNaN(d.getTime())) {
+      state.endTime = d.toISOString();
+      updated = true;
+    }
+  }
+  if (updated) { broadcast(); res.json({ ok: true }); }
+  else res.status(400).json({ ok: false, msg: 'Waktu tidak valid' });
+});
+
+app.post('/api/challenge', requireAuth, (req, res) => {
+  const { side, isSuccessful } = req.body;
+  if (state.challenges[side] > 0 && !isSuccessful) {
+    state.challenges[side]--;
+  }
+  broadcast();
+  res.json({ ok: true });
+});
+
+app.post('/api/pdf-exported', requireAuth, (req, res) => {
+  state.pdfExported = true;
   broadcast();
   res.json({ ok: true });
 });

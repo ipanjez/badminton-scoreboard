@@ -1,0 +1,9 @@
+@echo off
+:: Hentikan semua instance server (node.exe atau BadmintonScoreboard.exe)
+echo Stopping Badminton Scoreboard processes...
+echo Stopping packaged EXE processes...
+taskkill /F /IM BadmintonScoreboard.exe >nul 2>&1
+echo Stopping node processes...
+taskkill /F /IM node.exe >nul 2>&1
+echo Done.
+pause

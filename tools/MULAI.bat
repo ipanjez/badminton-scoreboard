@@ -5,7 +5,11 @@
 :: ════════════════════════════════════════════════════════
 cd /d "%~dp0.."
 title Badminton Scoreboard — Konsol Manajemen
-
+:: ── Deteksi runtime: Node.js atau .exe ──
+set "HAS_NODE=0"
+set "HAS_EXE=0"
+where node >nul 2>&1 && set "HAS_NODE=1"
+if exist "dist\BadmintonScoreboard.exe" set "HAS_EXE=1"
 :MENU
 cls
 color 0B
@@ -25,7 +29,7 @@ echo  ║  ───────────────────────
 echo  ║  [7] Build Aplikasi Standalone (.exe)           ║
 echo  ║  [8] Panduan Penggunaan                         ║
 echo  ║                                                  ║
-echo  ║  [0] Keluar                                     ║
+echo  [0] Keluar                                     ║
 echo  ╚══════════════════════════════════════════════════╝
 echo.
 set /p choice="  Pilih opsi [0-8]: "
@@ -43,6 +47,13 @@ goto MENU
 
 :START1
 cls
+:: Cek runtime
+if "%HAS_NODE%"=="0" if "%HAS_EXE%"=="0" (
+    echo  ⚠ Node.js tidak ditemukan dan dist\BadmintonScoreboard.exe belum dibuat.
+    echo  Install Node.js dari https://nodejs.org atau jalankan opsi [7] Build dulu.
+    pause
+    goto MENU
+)
 echo  Memulai server (1 lapangan)...
 echo  Tekan Ctrl+C untuk menghentikan.
 echo.
@@ -62,13 +73,26 @@ if defined LAN_IP echo  ║  LAN Display :  http://%LAN_IP%:3000/display
 if defined LAN_IP echo  ║  LAN Control :  http://%LAN_IP%:3000/controller
 echo  ╚════════════════════════════════════════════╝
 echo.
-start "" http://localhost:3000/display
-node server.js
+:: Buka browser setelah 3 detik (server perlu waktu start sebentar)
+start /min "" cmd /c "timeout /t 3 /nobreak >nul && start http://localhost:3000/launcher"
+if "%HAS_NODE%"=="1" (
+    node server.js
+) else (
+    echo  [Standalone .exe mode]
+    dist\BadmintonScoreboard.exe
+)
 pause
 goto MENU
 
 :STARTMULTI
 cls
+:: Cek runtime
+if "%HAS_NODE%"=="0" if "%HAS_EXE%"=="0" (
+    echo  ⚠ Node.js tidak ditemukan dan dist\BadmintonScoreboard.exe belum dibuat.
+    echo  Install Node.js dari https://nodejs.org atau jalankan opsi [7] Build dulu.
+    pause
+    goto MENU
+)
 echo  Mulai beberapa lapangan sekaligus.
 echo  (Lapangan 1 = port 3001, Lapangan 2 = port 3002, dst.)
 echo.
@@ -93,7 +117,11 @@ echo.
 set "LAN_IP="
 for /f "delims=" %%i in ('powershell -nologo -noprofile -command "try{(Get-NetIPAddress -AddressFamily IPv4 -Type Unicast | Where-Object {$_.IPAddress -notlike '127*' -and $_.IPAddress -notlike '169*'})[0].IPAddress}catch{''}" 2^>nul') do set "LAN_IP=%%i"
 for /L %%i in (1,1,%ncourts%) do (
-    call :LaunchCourt %%i
+    if "%HAS_NODE%"=="1" (
+        call :LaunchCourt %%i
+    ) else (
+        call :LaunchCourtExe %%i
+    )
 )
 echo.
 echo  ✅ %ncourts% server diluncurkan!
@@ -107,13 +135,10 @@ goto MENU
 
 :STOP
 cls
-echo  Menghentikan semua proses node.exe...
+echo  Menghentikan semua server...
 taskkill /f /im node.exe >nul 2>&1
-if %errorlevel% equ 0 (
-    echo  ✅ Server berhasil dihentikan.
-) else (
-    echo  ℹ Server tidak sedang berjalan.
-)
+taskkill /f /im BadmintonScoreboard.exe >nul 2>&1
+echo  ✅ Semua server dihentikan.
 pause
 goto MENU
 
@@ -157,27 +182,13 @@ cls
 echo  Build aplikasi standalone (.exe)...
 echo  Proses ini mungkin memakan waktu beberapa menit.
 echo.
-if not exist dist mkdir dist
-call npx pkg server.js --targets node18-win-x64 --output dist\BadmintonScoreboard.exe
+call "%~dp0build-exe.bat"
 if %errorlevel% neq 0 (
     echo.
     echo  ⚠ Build gagal. Pastikan 'npm install' sudah dijalankan.
     pause
     goto MENU
 )
-echo.
-echo  Menyalin file pendukung ke dist\...
-if exist dist\public rmdir /s /q dist\public
-xcopy /e /i /q public dist\public
-if not exist dist\node_modules\jspdf\dist mkdir dist\node_modules\jspdf\dist
-xcopy /e /i /q node_modules\jspdf\dist dist\node_modules\jspdf\dist
-copy /y .env.example dist\.env.example >nul
-if exist database.xlsx copy /y database.xlsx dist\database.xlsx >nul
-copy /y tools\start-server.bat dist\start-server.bat >nul 2>&1
-echo.
-echo  ✅ Build selesai! File ada di folder: dist\
-echo  Distribusikan seluruh folder dist\ — tidak perlu install Node.js di target.
-pause
 goto MENU
 
 :TUTORIAL
@@ -191,7 +202,7 @@ pause
 goto MENU
 
 :: ─────────────────────────────────────────────────────
-:: Subroutine: Jalankan 1 lapangan
+:: Subroutine: Jalankan 1 lapangan (mode Node.js)
 :: Parameter: %1 = nomor lapangan (1-6)
 :: ─────────────────────────────────────────────────────
 :LaunchCourt
@@ -216,6 +227,21 @@ set "COURT_PIN="
 for /f "tokens=2 delims==" %%p in ('type ".env.court%1" 2^>nul ^| findstr /i "CONTROLLER_PIN"') do set "COURT_PIN=%%p"
 if not defined COURT_PIN set "COURT_PIN=1234"
 start "Court %1 (Port 300%1)" cmd /k "cd /d "%~dp0.." && node -r dotenv/config server.js dotenv_config_path=.env.court%1"
+timeout /t 1 /nobreak >nul
+echo  Court %1 : http://localhost:300%1   PIN: %COURT_PIN%
+if defined LAN_IP echo           http://%LAN_IP%:300%1   ^(LAN^)
+exit /b
+
+:: ─────────────────────────────────────────────────────
+:: Subroutine: Jalankan 1 lapangan (mode .exe tanpa Node.js)
+:: Parameter: %1 = nomor lapangan (1-6)
+:: ─────────────────────────────────────────────────────
+:LaunchCourtExe
+set "COURT_PIN=1234"
+if exist ".env.court%1" (
+    for /f "tokens=2 delims==" %%p in ('type ".env.court%1" 2^>nul ^| findstr /i "CONTROLLER_PIN"') do set "COURT_PIN=%%p"
+)
+start "Court %1 (Port 300%1)" cmd /k "cd /d "%~dp0..\dist" && set PORT=300%1& set CONTROLLER_PIN=%COURT_PIN%& BadmintonScoreboard.exe"
 timeout /t 1 /nobreak >nul
 echo  Court %1 : http://localhost:300%1   PIN: %COURT_PIN%
 if defined LAN_IP echo           http://%LAN_IP%:300%1   ^(LAN^)
