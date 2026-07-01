@@ -10,7 +10,7 @@
   <script src="/vendor/jspdf/jspdf.umd.min.js"></script>
   <script src="/js/pdf-export.js"></script>
   <style>
-    body { font-family: 'Arial Black', Arial, sans-serif; overscroll-behavior: none; touch-action: manipulation; }
+    body { font-family: 'Arial Black', Arial, sans-serif; overscroll-behavior: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     /* Giant point buttons */
     .btn-point {
       display: flex; align-items: center; justify-content: center;
@@ -59,10 +59,21 @@
       box-shadow: 0 8px 24px #00000066; top: calc(100% + 4px);
     }
     .ac-item {
-      padding: 10px 14px; cursor: pointer; color: #0f172a; font-size: 0.9rem; font-weight: bold;
+      display: flex; align-items: center; gap: 8px;
+      padding: 11px 12px; color: #0f172a; font-size: 0.95rem; font-weight: bold;
       border-radius: 8px; margin: 2px 4px;
     }
     .ac-item:hover { background: #cbd5e1; }
+    .ac-item-text { flex: 1; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ac-item-del {
+      flex-shrink: 0; width: 28px; height: 28px; border-radius: 7px;
+      background: #fee2e2; color: #b91c1c; font-weight: 900; font-size: 1.1rem; line-height: 1;
+      border: 1px solid #fecaca; cursor: pointer; transition: background 0.15s, color 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .ac-item-del:hover { background: #ef4444; color: #fff; }
+    /* Invalid required field highlight */
+    .field-error { border-color:#ef4444 !important; box-shadow:0 0 0 2px rgba(239,68,68,.30) !important; }
     /* Court panel */
     #court-panel { transition: all 0.2s; }
     .court-player { cursor: pointer; transition: filter 0.15s; }
@@ -74,6 +85,8 @@
       z-index: 1000; overflow-y: auto; padding: 16px;
     }
     .modal-bg.hidden { display: none; }
+    /* Help manual number badge */
+    .hp-badge { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:9999px; background:#1e293b; color:#fff; font-size:11px; font-weight:900; flex-shrink:0; }
     /* Notification toast */
     .toast {
       position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
@@ -109,17 +122,31 @@
 <!-- ── Top Navigation Bar ── -->
 <div class="bg-white border-b border-slate-300 px-4 py-3 flex-shrink-0 flex items-center gap-3">
   <span class="text-2xl">🏸</span>
-  <div class="flex-1 min-w-0">
+  <div class="min-w-0 max-w-[240px] flex-shrink-0">
     <div class="text-yellow-400 font-black text-sm leading-tight truncate" id="c-tournament">—</div>
-    <div class="text-slate-600 text-xs">
+    <div class="text-slate-600 text-xs truncate">
       <span id="c-cat">—</span> · Court <span id="c-court">—</span> · Game <span id="c-game">1</span>/3
     </div>
   </div>
-  <button onclick="openSetup()" class="bg-slate-300 hover:bg-slate-600 text-slate-900 px-3 py-2 rounded-xl text-sm font-bold flex-shrink-0">⚙ Setup</button>
-  <button onclick="openHelp()"  class="bg-slate-300 hover:bg-slate-600 text-slate-900 px-3 py-2 rounded-xl text-sm font-bold flex-shrink-0">❓ Panduan</button>
-  <button id="btn-fullscreen" onclick="toggleFullscreen()" class="bg-slate-300 hover:bg-slate-600 text-slate-900 px-3 py-2 rounded-xl text-sm font-bold flex-shrink-0" title="Layar Penuh">⛶</button>
+  <!-- Match teams + time info (moved from center) -->
+  <div class="flex-1 min-w-0 flex flex-col items-center justify-center">
+    <div class="text-slate-600 text-xs font-bold truncate max-w-full" id="header-pb-name">PB A vs PB B</div>
+    <div id="time-info-bar" class="hidden flex items-center justify-center flex-wrap gap-x-1.5 gap-y-0.5 mt-0.5">
+      <span class="text-slate-400 text-[9px] uppercase tracking-wide">Mulai</span>
+      <span id="c-start-time" class="text-slate-700 text-[10px] font-mono font-bold bg-slate-100 border border-slate-200 px-2 py-0.5 rounded cursor-pointer hover:bg-yellow-100 hover:border-yellow-400 transition" ondblclick="openTimeAdjust('start')" title="Klik 2x untuk ubah waktu mulai">—</span>
+      <span class="text-slate-300 text-[9px]">▶</span>
+      <span class="text-slate-400 text-[9px] uppercase tracking-wide">Selesai</span>
+      <span id="c-end-time" class="text-slate-700 text-[10px] font-mono font-bold bg-slate-100 border border-slate-200 px-2 py-0.5 rounded cursor-pointer hover:bg-yellow-100 hover:border-yellow-400 transition" ondblclick="openTimeAdjust('end')" title="Klik 2x untuk ubah waktu selesai">—</span>
+      <span class="text-slate-300 text-[9px]">·</span>
+      <span class="text-slate-400 text-[9px] uppercase tracking-wide">Durasi</span>
+      <span id="c-duration" class="text-slate-700 text-[10px] font-mono font-bold bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">—</span>
+    </div>
+  </div>
+  <button onclick="openSetup()" class="bg-slate-300 hover:bg-slate-600 text-slate-900 px-4 py-2.5 rounded-xl text-sm font-bold flex-shrink-0">⚙ Setup</button>
+  <button onclick="openHelp()"  class="bg-slate-300 hover:bg-slate-600 text-slate-900 px-4 py-2.5 rounded-xl text-sm font-bold flex-shrink-0">❓ Panduan</button>
+  <button id="btn-fullscreen" onclick="toggleFullscreen()" class="bg-slate-300 hover:bg-slate-600 text-slate-900 px-4 py-2.5 rounded-xl text-sm font-bold flex-shrink-0" title="Layar Penuh">⛶</button>
   <form action="/logout" method="POST" class="flex-shrink-0">
-    <button type="submit" class="bg-slate-200 hover:bg-red-900/50 text-slate-600 hover:text-red-400 px-3 py-2 rounded-xl text-sm font-bold">Keluar</button>
+    <button type="submit" class="bg-slate-200 hover:bg-red-900/50 text-slate-600 hover:text-red-400 px-4 py-2.5 rounded-xl text-sm font-bold">Keluar</button>
   </form>
 </div>
 
@@ -147,83 +174,67 @@
 <div class="flex-1 flex flex-col p-2 gap-2 min-h-0 bg-slate-100">
 
   <!-- Main 3-Column Play Area -->
-  <div class="flex-1 grid grid-cols-[1fr_2.5fr_1fr] gap-2 min-h-0">
+  <div class="flex-1 grid grid-cols-[0.85fr_3.3fr_0.85fr] gap-2 min-h-0">
     
     <!-- ── TEAM L ── -->
-    <div class="bg-white rounded-2xl flex flex-col border border-slate-300 p-2 gap-2">
-      <!-- Team Header -->
-      <div class="text-center p-2 bg-slate-200/50 rounded-xl flex-shrink-0" title="Pilih untuk mengubah posisi servis">
-        <div class="font-black text-lg leading-tight transition" id="c-name-L">TIM L</div>
-        <div class="text-slate-600 text-xs truncate mt-0.5" id="c-club-L">—</div>
+    <div class="bg-white rounded-2xl flex flex-col items-center border border-slate-300 p-3 gap-2 overflow-hidden">
+      <!-- Club / PB name -->
+      <div class="text-center text-sm font-black text-blue-600 truncate w-full px-1" id="c-club-L" title="Klub / PB Tim Kiri">—</div>
+      <!-- Players + serving highlight -->
+      <div class="w-full bg-blue-50 border border-blue-200 rounded-xl px-2 py-2 text-center leading-tight">
+        <div class="text-xs font-bold text-slate-800 truncate" id="c-p1-L">—</div>
+        <div class="hidden" id="c-p2-L">—</div>
       </div>
-      <!-- Score Button (Huge) -->
-      <button class="flex-1 bg-blue-600 hover:bg-blue-500 text-slate-900 rounded-xl flex flex-col items-center justify-center transition transform active:scale-95 btn-match-action overflow-hidden shadow-[0_0_15px_rgba(37,99,235,0.2)]" onclick="addPoint('L')">
-        <span class="text-8xl font-black leading-none tracking-tighter" id="c-score-L">0</span>
-        <span class="text-blue-200 text-xs font-bold uppercase tracking-widest mt-2">Score</span>
+      <!-- Sets won -->
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Set Menang: <span class="text-blue-600 text-base align-middle" id="c-sets-L">0</span></div>
+
+      <div class="flex-1 min-h-0"></div>
+
+      <!-- Challenge -->
+      <div class="flex flex-col items-center gap-1">
+        <button onclick="useChallenge('L')" class="w-16 h-16 rounded-full bg-purple-50 border-2 border-purple-200 hover:bg-purple-100 active:scale-95 flex items-center justify-center shadow-sm transition btn-match-action" title="Gunakan Challenge Tim L">
+          <span id="chal-L" class="text-3xl font-black text-purple-700 leading-none">2</span>
+        </button>
+        <span class="text-[11px] font-black text-slate-600 uppercase tracking-wide">👁️ Challenge</span>
+      </div>
+      <!-- Shuttlecock MINUS (shared total) -->
+      <div class="flex flex-col items-center gap-1 mt-1">
+        <button onclick="addCock('L', -1)" class="w-16 h-16 rounded-full bg-slate-100 border-2 border-slate-300 hover:bg-slate-200 active:scale-95 flex items-center justify-center shadow-sm transition btn-match-action" title="Kurangi jumlah kok">
+          <span class="text-4xl font-black text-slate-600 leading-none">−</span>
+        </button>
+        <span class="text-[11px] font-black text-slate-600 uppercase tracking-wide">🏸 Kurangi Kok</span>
+        <span class="text-[11px] text-slate-500 font-bold">Total: <span id="cock-count-L" class="text-slate-800">0</span></span>
+      </div>
+
+      <div class="flex-1 min-h-0"></div>
+
+      <!-- Score (round, bottom, no number) -->
+      <button onclick="addPoint('L')" class="w-full max-w-[210px] aspect-square rounded-full bg-blue-600 hover:bg-blue-500 text-white flex flex-col items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.35)] transition transform active:scale-95 btn-match-action" title="Tambah poin Tim L">
+        <span class="text-4xl font-black uppercase tracking-wider">Score</span>
+        <span class="text-blue-100 text-xs font-bold mt-1">👆 Ketuk +1</span>
       </button>
-      <!-- Accessories -->
-      <div class="flex gap-2 flex-shrink-0 h-12">
-        <div class="flex-1 flex items-center justify-between bg-slate-200 rounded-xl px-1 border border-slate-400 relative">
-          <button class="w-10 h-10 flex items-center justify-center bg-slate-300 rounded-lg hover:bg-slate-600 font-bold transition btn-match-action" onclick="addCock('L', -1)">-</button>
-          <div class="text-lg absolute left-1/2 -translate-x-1/2 top-1 font-black text-slate-800" id="cock-count-L">0</div>
-          <div class="text-[12px] absolute left-1/2 -translate-x-1/2 bottom-1 opacity-60">🏸</div>
-          <button class="w-10 h-10 flex items-center justify-center bg-slate-300 rounded-lg hover:bg-slate-600 font-bold transition btn-match-action" onclick="addCock('L', 1)">+</button>
-        </div>
-        <div class="w-24 flex items-center justify-between bg-slate-200 rounded-xl px-1 border border-slate-400 relative">
-          <button class="w-6 h-10 flex items-center justify-center bg-slate-300 rounded-lg hover:bg-slate-600 font-bold transition btn-match-action" onclick="editChallenge('L', -1)">-</button>
-          <button class="flex-1 h-10 flex flex-col items-center justify-center hover:bg-slate-300 rounded transition btn-match-action" onclick="useChallenge('L')" title="Gunakan Challenge">
-            <span id="chal-L" class="text-sm font-bold text-slate-900 leading-none">2</span>
-            <span style="font-size:0.5rem" class="text-slate-600 mt-1">CHAL</span>
-          </button>
-          <button class="w-6 h-10 flex items-center justify-center bg-slate-300 rounded-lg hover:bg-slate-600 font-bold transition btn-match-action" onclick="editChallenge('L', 1)">+</button>
-        </div>
-      </div>
     </div>
 
     <!-- ── CENTER COURT & MATCH FLOW ── -->
     <div class="bg-white rounded-2xl flex flex-col border border-slate-300 relative overflow-hidden p-2">
       
-      <!-- Mini Header (Timer & Previous Games) -->
-      <div class="flex items-center justify-between px-2 mb-1 flex-shrink-0">
-        <div class="text-slate-600 text-xs font-bold" id="header-pb-name">PB A vs PB B</div>
-        <div class="text-white font-mono text-sm bg-slate-800 px-3 py-1 rounded-full border border-slate-700 shadow-inner" id="match-timer-display">00:00</div>
-        <div id="c-prev-games" class="flex gap-1.5 text-xs">
+      <!-- Mini Header (Timer + Walkover + Previous Games) -->
+      <div class="flex items-center justify-between px-2 mb-1 flex-shrink-0 gap-2">
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <div class="text-white font-mono text-base bg-slate-800 px-4 py-1.5 rounded-full border border-slate-700 shadow-inner" id="match-timer-display">00:00</div>
+          <button id="btn-next-game" onclick="nextGame()" class="hidden bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-1.5 rounded-full text-xs shadow-[0_0_10px_rgba(37,99,235,0.8)] transition flex items-center gap-1" title="Lanjut Game Berikutnya">▶ Lanjut Game</button>
+          <button onclick="triggerWalkover()" class="bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 font-bold px-4 py-1.5 rounded-full text-xs shadow-sm flex items-center gap-1 transition" title="Menang Walkover">🚑 WALKOVER</button>
+        </div>
+        <div id="c-prev-games" class="flex gap-1.5 text-xs justify-end min-w-0 overflow-hidden">
           <!-- Populated by JS -->
         </div>
       </div>
-      <!-- Time Info Bar (Start / End) -->
-      <div id="time-info-bar" class="hidden flex items-center justify-center gap-2 px-2 mb-1 flex-shrink-0">
-        <span class="text-slate-400 text-[9px] uppercase tracking-wide">Mulai</span>
-        <span id="c-start-time" class="text-slate-700 text-[10px] font-mono font-bold bg-slate-100 border border-slate-200 px-2 py-0.5 rounded cursor-pointer hover:bg-yellow-100 hover:border-yellow-400 transition" ondblclick="openTimeAdjust('start')" title="Klik 2x untuk ubah waktu mulai">—</span>
-        <span class="text-slate-300 text-[9px]">▶</span>
-        <span class="text-slate-400 text-[9px] uppercase tracking-wide">Selesai</span>
-        <span id="c-end-time" class="text-slate-700 text-[10px] font-mono font-bold bg-slate-100 border border-slate-200 px-2 py-0.5 rounded cursor-pointer hover:bg-yellow-100 hover:border-yellow-400 transition" ondblclick="openTimeAdjust('end')" title="Klik 2x untuk ubah waktu selesai">—</span>
-      </div>
-
-      <!-- Action Bar (Walkover + Main actions) -->
-      <div class="flex items-center justify-center gap-4 mb-2 flex-shrink-0 h-10">
-        <button onclick="sendUndo()" class="w-10 h-10 bg-slate-800 hover:bg-slate-700 rounded-full text-lg flex items-center justify-center text-white shadow transition transform hover:scale-110" title="Koreksi / Undo">
-          ↩
-        </button>
-        <button id="btn-next-game" onclick="nextGame()" class="hidden w-10 h-10 bg-blue-600 hover:bg-blue-500 rounded-full text-lg flex items-center justify-center text-white shadow-[0_0_10px_rgba(37,99,235,0.8)] transition transform hover:scale-110" title="Lanjut Game Berikutnya">
-          ▶
-        </button>
-        <button onclick="triggerWalkover()" class="bg-red-900/30 hover:bg-red-900/50 text-red-900 border border-red-900/50 font-bold px-4 py-1.5 rounded-full text-xs shadow-inner flex items-center transition">
-          🚑 WALKOVER
-        </button>
-        <button onclick="exportPDF()" class="w-10 h-10 bg-green-600 hover:bg-green-500 rounded-full text-lg flex items-center justify-center text-white shadow transition transform hover:scale-110" title="Export PDF Scoresheet">
-          📄
-        </button>
-        <button id="btn-reset-match" onclick="confirmReset()" class="w-10 h-10 bg-red-600 hover:bg-red-500 rounded-full text-lg flex items-center justify-center text-white shadow transition transform hover:scale-110" title="Reset Match">
-          🔄
-        </button>
-      </div>
 
       <!-- Court SVG Wrapper (Grows to fill space) -->
-      <div class="flex-1 relative flex items-center justify-center bg-[#118B50] rounded-xl overflow-hidden border-2 border-slate-400/50 shadow-inner">
+      <div class="flex-[4] relative flex items-center justify-center bg-[#118B50] rounded-xl overflow-hidden border-2 border-slate-400/50 shadow-inner">
         
         <!-- Start Match Overlay -->
-        <div id="start-flow-area" class="absolute inset-0 z-10 bg-white/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
+        <div id="start-flow-area" class="absolute inset-0 z-30 bg-white/90 flex flex-col items-center justify-center p-4 backdrop-blur-sm">
           
           <button id="btn-must-setup" onclick="openSetup()" class="hidden animate-pulse bg-red-100 hover:bg-red-200 text-red-700 font-black py-5 px-10 rounded-full text-xl shadow-2xl transition transform hover:scale-105 border-4 border-red-500">
             👇 ⚙ KLIK DI SINI UNTUK SETUP PERTANDINGAN
@@ -294,15 +305,33 @@
           
           <text id="court-shuttle" x="0" y="0" font-size="16" text-anchor="middle" opacity="0">🏸</text>
         </svg>
+
+        <!-- Floating Undo (left-center, over empty green space) -->
+        <button onclick="sendUndo()" class="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-16 h-16 bg-slate-800/90 hover:bg-slate-700 rounded-2xl flex flex-col items-center justify-center text-white shadow-xl transition transform hover:scale-105 active:scale-95 btn-match-action" title="Koreksi / Undo poin terakhir">
+          <span class="text-3xl leading-none">↩</span>
+          <span class="text-[9px] font-bold mt-0.5">UNDO</span>
+        </button>
+
+        <!-- Floating PDF + Reset (right-center, over empty green space) -->
+        <div class="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3">
+          <button onclick="exportPDF()" class="w-16 h-16 bg-green-600/95 hover:bg-green-500 rounded-2xl flex flex-col items-center justify-center text-white shadow-xl transition transform hover:scale-105 active:scale-95" title="Export PDF Scoresheet">
+            <span class="text-3xl leading-none">📄</span>
+            <span class="text-[9px] font-bold mt-0.5">PDF</span>
+          </button>
+          <button id="btn-reset-match" onclick="confirmReset()" class="w-16 h-16 bg-red-600/95 hover:bg-red-500 rounded-2xl flex flex-col items-center justify-center text-white shadow-xl transition transform hover:scale-105 active:scale-95" title="Reset Match">
+            <span class="text-3xl leading-none">🔄</span>
+            <span class="text-[9px] font-bold mt-0.5">RESET</span>
+          </button>
+        </div>
       </div>
       <!-- Embedded Scoreboard Table -->
-      <div class="mt-2 bg-white rounded-xl border border-slate-300 overflow-hidden flex flex-col shadow-sm flex-1 min-h-[100px]">
+      <div class="mt-2 bg-white rounded-xl border border-slate-300 overflow-hidden flex flex-col shadow-sm flex-[1.4] min-h-[88px]">
         <div class="overflow-x-auto flex-1 custom-scrollbar">
-          <table class="w-full h-full text-xs text-center border-collapse whitespace-nowrap table-fixed">
+          <table class="w-full h-full text-[10px] text-center border-collapse whitespace-nowrap table-fixed">
             <colgroup>
               <col class="w-6">
-              <col class="w-40">
-              <col class="w-6" span="60">
+              <col class="w-32">
+              <col class="w-5" span="60">
             </colgroup>
             <thead>
                 <tr id="sb-header-row" class="bg-slate-50 text-slate-500 border-b border-slate-300">
@@ -318,34 +347,42 @@
     </div>
 
     <!-- ── TEAM R ── -->
-    <div class="bg-white rounded-2xl flex flex-col border border-slate-300 p-2 gap-2">
-      <!-- Team Header -->
-      <div class="text-center p-2 bg-slate-200/50 rounded-xl flex-shrink-0" title="Pilih untuk mengubah posisi servis">
-        <div class="font-black text-lg leading-tight transition" id="c-name-R">TIM R</div>
-        <div class="text-slate-600 text-xs truncate mt-0.5" id="c-club-R">—</div>
+    <div class="bg-white rounded-2xl flex flex-col items-center border border-slate-300 p-3 gap-2 overflow-hidden">
+      <!-- Club / PB name -->
+      <div class="text-center text-sm font-black text-orange-600 truncate w-full px-1" id="c-club-R" title="Klub / PB Tim Kanan">—</div>
+      <!-- Players + serving highlight -->
+      <div class="w-full bg-orange-50 border border-orange-200 rounded-xl px-2 py-2 text-center leading-tight">
+        <div class="text-xs font-bold text-slate-800 truncate" id="c-p1-R">—</div>
+        <div class="hidden" id="c-p2-R">—</div>
       </div>
-      <!-- Score Button (Huge) -->
-      <button class="flex-1 bg-orange-600 hover:bg-orange-500 text-slate-900 rounded-xl flex flex-col items-center justify-center transition transform active:scale-95 btn-match-action overflow-hidden shadow-[0_0_15px_rgba(234,88,12,0.2)]" onclick="addPoint('R')">
-        <span class="text-8xl font-black leading-none tracking-tighter" id="c-score-R">0</span>
-        <span class="text-orange-200 text-xs font-bold uppercase tracking-widest mt-2">Score</span>
+      <!-- Sets won -->
+      <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Set Menang: <span class="text-orange-600 text-base align-middle" id="c-sets-R">0</span></div>
+
+      <div class="flex-1 min-h-0"></div>
+
+      <!-- Challenge -->
+      <div class="flex flex-col items-center gap-1">
+        <button onclick="useChallenge('R')" class="w-16 h-16 rounded-full bg-purple-50 border-2 border-purple-200 hover:bg-purple-100 active:scale-95 flex items-center justify-center shadow-sm transition btn-match-action" title="Gunakan Challenge Tim R">
+          <span id="chal-R" class="text-3xl font-black text-purple-700 leading-none">2</span>
+        </button>
+        <span class="text-[11px] font-black text-slate-600 uppercase tracking-wide">👁️ Challenge</span>
+      </div>
+      <!-- Shuttlecock PLUS (shared total) -->
+      <div class="flex flex-col items-center gap-1 mt-1">
+        <button onclick="addCock('L', 1)" class="w-16 h-16 rounded-full bg-slate-100 border-2 border-slate-300 hover:bg-slate-200 active:scale-95 flex items-center justify-center shadow-sm transition btn-match-action" title="Tambah jumlah kok">
+          <span class="text-4xl font-black text-slate-600 leading-none">+</span>
+        </button>
+        <span class="text-[11px] font-black text-slate-600 uppercase tracking-wide">🏸 Tambah Kok</span>
+        <span class="text-[11px] text-slate-500 font-bold">Total: <span id="cock-count-R" class="text-slate-800">0</span></span>
+      </div>
+
+      <div class="flex-1 min-h-0"></div>
+
+      <!-- Score (round, bottom, no number) -->
+      <button onclick="addPoint('R')" class="w-full max-w-[210px] aspect-square rounded-full bg-orange-600 hover:bg-orange-500 text-white flex flex-col items-center justify-center shadow-[0_0_20px_rgba(234,88,12,0.35)] transition transform active:scale-95 btn-match-action" title="Tambah poin Tim R">
+        <span class="text-4xl font-black uppercase tracking-wider">Score</span>
+        <span class="text-orange-100 text-xs font-bold mt-1">👆 Ketuk +1</span>
       </button>
-      <!-- Accessories -->
-      <div class="flex gap-2 flex-shrink-0 h-12 flex-row-reverse">
-        <div class="flex-1 flex items-center justify-between bg-slate-200 rounded-xl px-1 border border-slate-400 relative">
-          <button class="w-10 h-10 flex items-center justify-center bg-slate-300 rounded-lg hover:bg-slate-600 font-bold transition btn-match-action" onclick="addCock('R', -1)">-</button>
-          <div class="text-lg absolute left-1/2 -translate-x-1/2 top-1 font-black text-slate-800" id="cock-count-R">0</div>
-          <div class="text-[12px] absolute left-1/2 -translate-x-1/2 bottom-1 opacity-60">🏸</div>
-          <button class="w-10 h-10 flex items-center justify-center bg-slate-300 rounded-lg hover:bg-slate-600 font-bold transition btn-match-action" onclick="addCock('R', 1)">+</button>
-        </div>
-        <div class="w-24 flex items-center justify-between bg-slate-200 rounded-xl px-1 border border-slate-400 relative flex-row">
-          <button class="w-6 h-10 flex items-center justify-center bg-slate-300 rounded-lg hover:bg-slate-600 font-bold transition btn-match-action" onclick="editChallenge('R', -1)">-</button>
-          <button class="flex-1 h-10 flex flex-col items-center justify-center hover:bg-slate-300 rounded transition btn-match-action" onclick="useChallenge('R')" title="Gunakan Challenge">
-            <span id="chal-R" class="text-sm font-bold text-slate-900 leading-none">2</span>
-            <span style="font-size:0.5rem" class="text-slate-600 mt-1">CHAL</span>
-          </button>
-          <button class="w-6 h-10 flex items-center justify-center bg-slate-300 rounded-lg hover:bg-slate-600 font-bold transition btn-match-action" onclick="editChallenge('R', 1)">+</button>
-        </div>
-      </div>
     </div>
 
   </div><!-- /3-col grid -->
@@ -407,7 +444,7 @@
             </div>
           </div>
 
-        <div class="grid grid-cols-4 gap-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label class="text-sm font-bold text-slate-700">LAPANGAN / COURT</label>
             <div class="ac-wrap w-full mt-1">
@@ -447,7 +484,7 @@
       </div>
 
       <!-- Middle Section: Players Setup -->
-      <div class="relative grid grid-cols-2 gap-6">
+      <div class="relative grid grid-cols-2 gap-4 md:gap-6">
         
         <!-- Swap Button -->
         <button onclick="swapTeamsSetup()" class="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-14 h-14 shadow-[0_0_15px_rgba(37,99,235,0.4)] flex items-center justify-center text-3xl transition transform hover:rotate-180 z-20 border-4 border-white" title="Tukar Posisi Kiri / Kanan" type="button">
@@ -553,13 +590,9 @@
 
       <!-- Kategori — moved here, after team name selection -->
       <div class="bg-slate-100 p-4 rounded-2xl border border-slate-300 shadow-sm">
-        <label class="text-sm font-bold text-slate-700">KATEGORI PERTANDINGAN</label>
-        <select id="s-category" class="w-full text-lg mt-1 p-2 rounded-lg border border-slate-300 bg-white font-bold" onchange="debounceSetupUpdate()">
-          <option value="MS">MS – Men's Singles</option>
-          <option value="WS">WS – Women's Singles</option>
-          <option value="MD">MD – Men's Doubles</option>
-          <option value="WD">WD – Women's Doubles</option>
-          <option value="XD">XD – Mixed Doubles</option>
+        <label class="text-sm font-bold text-slate-700">KATEGORI PERTANDINGAN <span class="text-red-500">*</span></label>
+        <select id="s-category" class="w-full text-lg mt-1 p-2 rounded-lg border border-slate-300 bg-white font-bold" onchange="this.classList.remove('field-error'); debounceSetupUpdate()">
+          <option value="">— Pilih Kategori —</option>
         </select>
       </div>
 
@@ -567,10 +600,14 @@
         ⚠️ Pertandingan tidak seimbang (2 lawan 1). Harap lengkapi Pemain 2 untuk kedua tim, atau kosongkan keduanya jika ingin bermain tunggal.
       </div>
 
+      <div id="setup-new-warning" class="hidden text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-300 text-sm font-medium leading-relaxed">
+        <!-- Populated by checkNewEntries() -->
+      </div>
+
       <!-- Bottom Section: TV Config -->
       <div class="bg-slate-200 p-5 rounded-2xl border border-slate-400 mt-4">
-        <label class="text-sm font-black text-slate-800">📺 UKURAN TEKS LAYAR TV (Terapkan Secara Real-time)</label>
-          <div class="flex gap-6 mt-4">
+        <label class="text-sm font-black text-slate-800">📺 UKURAN TEKS LAYAR TV (Diterapkan saat Simpan)</label>
+          <div class="flex flex-col md:flex-row gap-4 mt-4">
             <div class="flex-1">
               <span class="text-sm font-bold text-slate-700">NAMA PEMAIN</span>
               <div class="flex items-center gap-4 mt-2">
@@ -593,8 +630,9 @@
     </div>
     
     <!-- Modal footer -->
-    <div class="px-6 py-4 border-t border-slate-400 bg-slate-100 rounded-b-3xl">
-      <button onclick="closeSetup()" class="w-full bg-slate-300 hover:bg-slate-400 text-slate-900 py-4 rounded-xl font-black text-xl transition border border-slate-400">✓ TUTUP PENGATURAN</button>
+    <div class="px-6 py-4 border-t border-slate-400 bg-slate-100 rounded-b-3xl flex gap-3">
+      <button onclick="closeSetup()" class="flex-1 bg-slate-300 hover:bg-slate-400 text-slate-900 py-4 rounded-xl font-black text-lg transition border border-slate-400">Tutup</button>
+      <button onclick="saveAllSetup()" class="flex-[2] bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-black text-xl transition shadow-[0_0_15px_rgba(22,163,74,0.4)]">💾 SIMPAN &amp; TERAPKAN</button>
     </div>
   </div>
 </div><!-- /setup-modal -->
@@ -649,63 +687,143 @@
   </div>
 </div>
 
+<!-- ── DELETE DB ENTRY MODAL ── -->
+<div id="db-delete-modal" class="modal-bg hidden" onclick="closeDbDelete()">
+  <div class="bg-white rounded-3xl w-full max-w-sm border border-red-900 shadow-2xl mt-20" onclick="event.stopPropagation()">
+    <div class="p-6 text-center">
+      <div class="text-5xl mb-3">🗑️</div>
+      <h3 class="text-slate-900 font-black text-xl mb-2">Hapus dari Database?</h3>
+      <p class="text-slate-600 text-sm mb-1">Hapus <strong id="db-delete-name" class="text-slate-900 break-words">—</strong> dari database?</p>
+      <p class="text-slate-500 text-xs mb-6">Nama ini tidak akan muncul lagi di dropdown.</p>
+      <div class="flex gap-3">
+        <button onclick="closeDbDelete()" class="flex-1 bg-slate-300 hover:bg-slate-600 text-slate-900 py-3 rounded-xl font-bold">Batal</button>
+        <button onclick="confirmDbDelete()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-black">Hapus!</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Toast ── -->
 <div id="toast" class="toast hidden"></div>
 
 <!-- ── HELP / TUTORIAL MODAL ── -->
 <div id="help-modal" class="modal-bg hidden" onclick="closeHelp()">
-  <div class="bg-white rounded-3xl w-full max-w-2xl border border-slate-400 shadow-2xl" onclick="event.stopPropagation()">
+  <div class="bg-white rounded-3xl w-full max-w-4xl border border-slate-400 shadow-2xl" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-slate-400 flex items-center justify-between">
       <h2 class="text-slate-900 font-black text-xl">❓ Panduan Wasit / Operator</h2>
       <button onclick="closeHelp()" class="text-slate-600 hover:text-slate-900 text-2xl leading-none">×</button>
     </div>
     <div class="px-6 py-4 overflow-y-auto space-y-4" style="max-height:80vh">
 
-      <div class="grid grid-cols-2 gap-3">
-
-        <div class="bg-slate-200 rounded-2xl p-4">
-          <div class="text-yellow-400 font-black mb-2">⚙ SETUP PERTANDINGAN</div>
-          <p class="text-slate-700 text-sm">Klik tombol <strong>⚙ Setup</strong> di atas kanan. Isi nama turnamen, kategori, lapangan, nama pemain, klub, wasit. Pilih siapa yang servis pertama. Klik <strong>Simpan &amp; Terapkan</strong>.</p>
+      <!-- Visual layout map -->
+      <div class="bg-slate-50 border-2 border-slate-300 rounded-2xl p-3">
+        <div class="text-center text-slate-800 font-black text-sm mb-2">🗺️ PETA TAMPILAN CONTROLLER</div>
+        <!-- Top bar -->
+        <div class="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-2 py-1.5 mb-2 text-[11px] font-bold">
+          <span class="hp-badge">1</span><span class="text-slate-600 hidden sm:inline">Turnamen</span>
+          <span class="flex-1 text-center text-slate-600"><span class="hp-badge">2</span> Tim A vs B · Waktu</span>
+          <span class="hp-badge">3</span><span class="text-slate-600">⚙ ❓ ⛶</span>
         </div>
-
-        <div class="bg-slate-200 rounded-2xl p-4">
-          <div class="text-blue-400 font-black mb-2"> MENAMBAH POIN</div>
-          <p class="text-slate-700 text-sm">Tekan tombol <strong class="text-4xl">+</strong> besar sesuai tim yang memenangkan reli. Perpindahan servis (Service Over) terjadi <em>otomatis</em>.</p>
+        <!-- 3 columns -->
+        <div class="grid grid-cols-[1fr_1.7fr_1fr] gap-2 text-[10px] font-bold text-center">
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 space-y-1">
+            <div class="text-blue-700"><span class="hp-badge">4</span> TIM KIRI</div>
+            <div class="text-slate-500 leading-tight">Klub · Pemain · Set</div>
+            <div class="bg-purple-100 text-purple-700 rounded-full px-1 py-1">👁️ CHAL</div>
+            <div class="bg-slate-200 text-slate-700 rounded-full px-1 py-1">🏸 KOK −</div>
+            <div class="bg-blue-600 text-white rounded-full py-2">SCORE</div>
+          </div>
+          <div class="bg-green-50 border border-green-200 rounded-lg p-2 space-y-1 flex flex-col">
+            <div class="text-green-700"><span class="hp-badge">6</span> Timer · Walkover · Game</div>
+            <div class="relative bg-[#118B50] text-white rounded-lg py-5 flex-1 flex items-center justify-center">
+              <span class="hp-badge absolute left-1 top-1/2 -translate-y-1/2">7</span>
+              <span class="text-white/90"><span class="hp-badge">5</span> LAPANGAN</span>
+              <span class="hp-badge absolute right-1 top-1/2 -translate-y-1/2">7</span>
+            </div>
+            <div class="bg-white border border-slate-300 rounded px-1 py-1 text-slate-500"><span class="hp-badge">8</span> Tabel Skor</div>
+          </div>
+          <div class="bg-orange-50 border border-orange-200 rounded-lg p-2 space-y-1">
+            <div class="text-orange-700"><span class="hp-badge">4</span> TIM KANAN</div>
+            <div class="text-slate-500 leading-tight">Klub · Pemain · Set</div>
+            <div class="bg-purple-100 text-purple-700 rounded-full px-1 py-1">👁️ CHAL</div>
+            <div class="bg-slate-200 text-slate-700 rounded-full px-1 py-1">🏸 KOK +</div>
+            <div class="bg-orange-600 text-white rounded-full py-2">SCORE</div>
+          </div>
         </div>
-
-        <div class="bg-slate-200 rounded-2xl p-4">
-          <div class="text-amber-400 font-black mb-2">↩ KOREKSI / UNDO</div>
-          <p class="text-slate-700 text-sm">Tekan tombol <strong>⟵ Koreksi</strong> atau <strong>↩ Undo</strong> untuk membatalkan poin terakhir. Bisa dilakukan berkali-kali.</p>
-        </div>
-
-        <div class="bg-slate-200 rounded-2xl p-4">
-          <div class="text-orange-400 font-black mb-2">🏸 SERVIS MANUAL</div>
-          <p class="text-slate-700 text-sm">Tekan tombol <strong>Jadikan Serve</strong> untuk mengatur servis secara manual jika terjadi kesalahan. Biasanya tidak perlu — servis berpindah otomatis.</p>
-        </div>
-
-        <div class="bg-slate-200 rounded-2xl p-4">
-          <div class="text-yellow-300 font-black mb-2">⏱ INTERVAL (Skor 11)</div>
-          <p class="text-slate-700 text-sm">Banner kuning <strong>INTERVAL</strong> muncul otomatis saat skor 11 pertama kali tercapai. Istirahat 60 detik, lalu klik <strong>Lanjutkan ▶</strong>.</p>
-        </div>
-
-        <div class="bg-slate-200 rounded-2xl p-4">
-          <div class="text-blue-300 font-black mb-2">▶ PINDAH GAME</div>
-          <p class="text-slate-700 text-sm">Setelah satu game selesai, klik <strong>Game ▶ Lanjut</strong>. Ganti servis awal game baru secara manual dengan tombol Serve jika perlu.</p>
-        </div>
-
-        <div class="bg-slate-200 rounded-2xl p-4">
-          <div class="text-green-400 font-black mb-2">📄 EXPORT PDF</div>
-          <p class="text-slate-700 text-sm">Klik <strong>📄 PDF</strong> kapan saja untuk mengunduh score sheet resmi format BWF. PDF berisi riwayat skor lengkap, lingkaran merah di poin 11 &amp; poin kemenangan, dan kolom tanda tangan wasit.</p>
-        </div>
-
-        <div class="bg-slate-200 rounded-2xl p-4">
-          <div class="text-red-400 font-black mb-2">🔄 RESET MATCH</div>
-          <p class="text-slate-700 text-sm">Klik <strong>🔄 Reset</strong> untuk memulai pertandingan baru. Semua skor &amp; riwayat akan dihapus. Muncul konfirmasi sebelum dieksekusi.</p>
-        </div>
-
+        <div class="text-center text-[10px] text-slate-400 mt-1.5 italic">Ilustrasi tata letak — nomor merujuk ke langkah panduan di bawah</div>
       </div>
 
-      <div class="bg-yellow-900/30 border border-yellow-700/50 rounded-2xl p-4 text-sm text-yellow-200">
+      <!-- Step-by-step manual -->
+      <div class="space-y-2">
+        <div class="text-slate-800 font-black text-sm">📋 LANGKAH PENGOPERASIAN</div>
+
+        <div class="flex gap-3 bg-slate-100 border border-slate-300 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">3</span>
+          <div class="text-sm text-slate-700"><b>Setup Pertandingan.</b> Klik <b>⚙ Setup</b> (kanan atas). Isi turnamen, lapangan, nama pemain, klub, wasit, kategori. Klik <b>💾 SIMPAN &amp; TERAPKAN</b>.</div>
+        </div>
+
+        <div class="flex gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">5</span>
+          <div class="text-sm text-slate-700"><b>Mulai Match.</b> Di area lapangan, pilih tim yang <b>servis pertama</b>, lalu klik <b>MULAI MATCH</b>. Timer berjalan.</div>
+        </div>
+
+        <div class="flex gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">4</span>
+          <div class="text-sm text-slate-700"><b>Menambah Poin.</b> <b>Ketuk kotak SCORE</b> tim yang memenangkan reli (biru = kiri, oranye = kanan). Servis berpindah otomatis.</div>
+        </div>
+
+        <div class="flex gap-3 bg-slate-100 border border-slate-300 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">7</span>
+          <div class="text-sm text-slate-700"><b>Koreksi / Undo.</b> Salah ketuk? Tekan tombol bulat <b>↩ UNDO</b> (kiri lapangan) untuk membatalkan poin terakhir. Bisa berkali-kali.</div>
+        </div>
+
+        <div class="flex gap-3 bg-slate-100 border border-slate-300 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">5</span>
+          <div class="text-sm text-slate-700"><b>Ganti Server (manual).</b> Jika perlu koreksi, <b>klik nama pemain di dalam lapangan</b>. Pemain yang servis disorot kuning. Biasanya tidak perlu.</div>
+        </div>
+
+        <div class="flex gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">5</span>
+          <div class="text-sm text-slate-700"><b>Interval (skor 11).</b> Otomatis muncul saat satu tim capai <b>11</b> pertama kali. Klik <b>▶ Lanjutkan</b> setelah istirahat.</div>
+        </div>
+
+        <div class="flex gap-3 bg-blue-50 border border-blue-200 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">6</span>
+          <div class="text-sm text-slate-700"><b>Pindah Game.</b> Setelah game selesai, tombol <b>▶ Lanjut Game</b> muncul di header. Klik untuk game berikutnya.</div>
+        </div>
+
+        <div class="flex gap-3 bg-slate-100 border border-slate-300 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">4</span>
+          <div class="text-sm text-slate-700"><b>Kok &amp; Challenge.</b> Panel tim: <b>🏸 KOK −/+</b> (kiri kurangi, kanan tambah, total bersama). <b>👁️ CHAL</b> menampilkan sisa challenge tim; ketuk untuk memakainya.</div>
+        </div>
+
+        <div class="flex gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">2</span>
+          <div class="text-sm text-slate-700"><b>Ubah Waktu.</b> <b>Dobel-klik</b> waktu Mulai di header. Waktu Selesai hanya bisa diubah setelah match selesai.</div>
+        </div>
+
+        <div class="flex gap-3 bg-red-50 border border-red-200 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">6</span>
+          <div class="text-sm text-slate-700"><b>Walkover.</b> Klik <b>🚑 WALKOVER</b> (header), pilih tim <b>MENANG</b>. Tercatat di score sheet.</div>
+        </div>
+
+        <div class="flex gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">7</span>
+          <div class="text-sm text-slate-700"><b>Export PDF.</b> Klik <b>📄 PDF</b> (kanan lapangan) kapan saja. Saat match selesai, PDF juga tersimpan otomatis ke folder <b>exports</b>.</div>
+        </div>
+
+        <div class="flex gap-3 bg-red-50 border border-red-200 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">7</span>
+          <div class="text-sm text-slate-700"><b>Reset Match.</b> Klik <b>🔄 RESET</b> (kanan lapangan) untuk pertandingan baru. Ada konfirmasi dulu.</div>
+        </div>
+
+        <div class="flex gap-3 bg-slate-100 border border-slate-300 rounded-xl p-3">
+          <span class="hp-badge mt-0.5">3</span>
+          <div class="text-sm text-slate-700"><b>Layar Penuh.</b> Klik <b>⛶</b> (kanan atas) untuk fokus. Tekan <b>Esc</b> untuk keluar.</div>
+        </div>
+      </div>
+
+      <div class="bg-amber-50 border border-amber-300 rounded-2xl p-4 text-sm text-amber-800">
         <strong>💡 Tips:</strong> Jika tampilan TV tidak update, minta penonton/operator TV untuk me-refresh browser (<strong>F5</strong> atau <strong>Ctrl+R</strong>). Pastikan semua perangkat terhubung ke Wi-Fi yang sama.
       </div>
 
@@ -749,6 +867,13 @@
 
   // Fetch initial DB
   fetch('/api/db').then(r => r.json()).then(d => { dbData = d; });
+
+  // Clear the red "required" highlight as soon as the operator edits the field
+  document.addEventListener('input', e => {
+    if (e.target && e.target.classList && e.target.classList.contains('field-error')) {
+      e.target.classList.remove('field-error');
+    }
+  });
 
   // ───────────────────────────────────────────
   //  Render
@@ -806,7 +931,20 @@
       if ($id('time-info-bar')) $id('time-info-bar').classList.remove('hidden');
       const resolvedStart = s.startTime || (s.matchTimerStart ? new Date(s.matchTimerStart).toISOString() : null);
       if ($id('c-start-time')) $id('c-start-time').textContent = resolvedStart ? fmtTimeCtrl(resolvedStart) : '—';
-      if ($id('c-end-time')) $id('c-end-time').textContent = s.endTime ? fmtTimeCtrl(s.endTime) : '—';
+      const endEl = $id('c-end-time');
+      if (endEl) {
+        endEl.textContent = s.endTime ? fmtTimeCtrl(s.endTime) : '—';
+        // End time is only editable once the match is over (otherwise duration must keep running)
+        if (s.isMatchOver) {
+          endEl.classList.add('cursor-pointer', 'hover:bg-yellow-100', 'hover:border-yellow-400');
+          endEl.classList.remove('opacity-50', 'cursor-not-allowed');
+          endEl.title = 'Klik 2x untuk ubah waktu selesai';
+        } else {
+          endEl.classList.remove('cursor-pointer', 'hover:bg-yellow-100', 'hover:border-yellow-400');
+          endEl.classList.add('opacity-50', 'cursor-not-allowed');
+          endEl.title = 'Waktu selesai terkunci hingga pertandingan selesai';
+        }
+      }
     } else {
       if ($id('time-info-bar')) $id('time-info-bar').classList.add('hidden');
     }
@@ -837,40 +975,32 @@
       $id('modal-font-club-val').textContent = s.displayClubFontSize + 'px';
     }
 
+    // Total shuttlecock count (single shared counter) shown on both − / + buttons
+    const cockTotal = (s.shuttlecocks?.L || 0) + (s.shuttlecocks?.R || 0);
     ['L','R'].forEach(side => {
       const t = s.teams[side];
-      const headerContainer = $id(`c-hdr-${side}`);
-      if(headerContainer) headerContainer.title = "Pilih untuk mengubah posisi servis";
+      if ($id(`cock-count-${side}`)) $id(`cock-count-${side}`).textContent = cockTotal;
+      if ($id(`c-club-${side}`)) $id(`c-club-${side}`).textContent = t.club || '—';
+      if ($id(`c-sets-${side}`)) $id(`c-sets-${side}`).textContent = s.gamesWon?.[side] ?? 0;
+
+      // Players + serving highlight (info only — change server via court click)
       const isServing = s.serverSide === side;
-      
-      let activeServerIndex = s.serverP2 && s.serverP2[side] ? 2 : 1;
-      if (!t.player2) activeServerIndex = 1;
-
-      // Update names rendering
-      let displayNameHtml = ``;
-      let flag = t.flag ? `<span class="mr-1 pointer-events-none">${t.flag}</span>` : '';
-      let colorClass = side === 'L' ? 'text-blue-600 hover:text-blue-500' : 'text-orange-600 hover:text-orange-500';
-      
-      if (t.player1) {
-         let bgClass = (isServing && activeServerIndex === 1) ? 'bg-slate-800 text-yellow-400 rounded px-2 py-0.5 shadow-sm' : colorClass;
-         displayNameHtml += `<div class="truncate font-black text-base cursor-pointer transition ${bgClass}" onclick="setSpecificServer('${side}', 1)">${flag}${t.player1}</div>`;
-      } else {
-         displayNameHtml += `<div class="truncate font-black text-base ${colorClass}">${flag}TIM ${side}</div>`;
+      const activeIdx = (s.serverP2 && s.serverP2[side]) ? 2 : 1;
+      const p1El = $id(`c-p1-${side}`), p2El = $id(`c-p2-${side}`);
+      if (p1El) {
+        p1El.textContent = (t.flag ? t.flag + ' ' : '') + (t.player1 || `TIM ${side}`);
+        p1El.className = 'text-xs font-bold leading-tight truncate ' +
+          (isServing && activeIdx === 1 ? 'bg-yellow-300 text-slate-900 rounded px-1' : 'text-slate-800');
       }
-      
-      if (t.player2) {
-         let bgClass = (isServing && activeServerIndex === 2) ? 'bg-slate-800 text-yellow-400 rounded px-2 py-0.5 shadow-sm' : colorClass;
-         displayNameHtml += `<div class="truncate font-black text-base cursor-pointer transition ${bgClass}" onclick="setSpecificServer('${side}', 2)">${t.player2}</div>`;
+      if (p2El) {
+        if (t.player2) {
+          p2El.textContent = t.player2;
+          p2El.className = 'text-xs font-bold leading-tight truncate mt-0.5 ' +
+            (isServing && activeIdx === 2 ? 'bg-yellow-300 text-slate-900 rounded px-1' : 'text-slate-600');
+        } else {
+          p2El.className = 'hidden';
+        }
       }
-      
-      $id(`c-name-${side}`).innerHTML = displayNameHtml;
-      
-      $id(`c-club-${side}`).textContent = t.club    || '';
-
-      $id(`c-score-${side}`).textContent = sc[side];
-      
-      const scount = (s.shuttlecocks && s.shuttlecocks[side]) || 0;
-      if ($id(`cock-count-${side}`)) $id(`cock-count-${side}`).textContent = scount;
     });
 
     // Next game button visibility
@@ -1018,6 +1148,10 @@
 
   function openTimeAdjust(field) {
     if (!currentState) return;
+    if (field === 'end' && !currentState.isMatchOver) {
+      toast('⛔ Waktu selesai hanya bisa diubah setelah pertandingan selesai', 3000);
+      return;
+    }
     currentTimeAdjustField = field;
     $id('time-adjust-title').textContent = field === 'start' ? 'Ubah Waktu Mulai' : 'Ubah Waktu Selesai';
     const iso = field === 'start'
@@ -1050,6 +1184,7 @@
   function updateTimer() {
     if (!currentState || !currentState.matchTimerStart || !currentState.isMatchStarted) {
       if ($id('match-timer-display')) $id('match-timer-display').textContent = '00:00';
+      if ($id('c-duration')) $id('c-duration').textContent = '00:00';
       return;
     }
     const ms = currentState.endTime ? (new Date(currentState.endTime) - new Date(currentState.matchTimerStart)) : (Date.now() - currentState.matchTimerStart);
@@ -1057,6 +1192,7 @@
     const mins = String(Math.floor(totalSecs / 60)).padStart(2, '0');
     const secs = String(totalSecs % 60).padStart(2, '0');
     if ($id('match-timer-display')) $id('match-timer-display').textContent = `${mins}:${secs}`;
+    if ($id('c-duration')) $id('c-duration').textContent = `${mins}:${secs}`;
   }
 
   function setMatchButtonsEnabled(enabled) {
@@ -1145,7 +1281,7 @@
     const headerRow = $id('sb-header-row');
     if (!tbody || !headerRow) return;
 
-    headerRow.innerHTML = `<th class="p-0 h-6 sticky left-0 bg-slate-200 z-20 border-r border-slate-300 w-6"></th><th class="px-2 py-0 h-6 sticky left-6 bg-slate-200 z-20 border-r border-slate-300 w-40 text-left truncate">Pemain</th>`;
+    headerRow.innerHTML = `<th class="p-0 h-5 sticky left-0 bg-slate-200 z-20 border-r border-slate-300 w-6"></th><th class="px-1 py-0 h-5 sticky left-6 bg-slate-200 z-20 border-r border-slate-300 w-32 text-left truncate">Pemain</th>`;
     
     // Filter history for current game
     const gameHistory = s.history.filter(h => h.game === s.activeGame);
@@ -1154,12 +1290,23 @@
     const hasStarted = gameHistory.length > 0 || (sc && (sc.L > 0 || sc.R > 0));
     // Initial server for this game (fixed — does not move during the game)
     const initSrv = gameHistory.length > 0 ? gameHistory[0].prevServer : s.serverSide;
+    // Which PLAYER serves/receives at game start (for doubles S/R placement).
+    // At 0-0 it follows the live serverP2 so the umpire can still switch it.
+    const initSrvPIdx = gameHistory.length > 0
+      ? (gameHistory[0].serverPlayerIndex || 1)
+      : ((s.serverP2 && s.serverP2[initSrv]) ? 2 : 1);
+    const initRcvTeam = initSrv === 'L' ? 'R' : 'L';
+    // Receiver = the receiving team's player standing in the diagonal (right) court
+    // at game start — same source the court visualization uses (serverP2 flag).
+    const initRcvPIdx = gameHistory.length > 0
+      ? ((initRcvTeam === 'L' ? gameHistory[0].serverP2L : gameHistory[0].serverP2R) ? 2 : 1)
+      : ((s.serverP2 && s.serverP2[initRcvTeam]) ? 2 : 1);
 
     // fill header numbers
     const cellsCount = hasStarted ? gameHistory.length + 1 : 0;
     for(let i=0; i<60; i++) {
        const lbl = i < cellsCount ? (i===0 ? '0' : gameHistory[i-1].scoreL + gameHistory[i-1].scoreR) : '';
-       headerRow.innerHTML += `<th class="p-0 h-6 text-center bg-slate-50 font-normal text-[10px] leading-6 w-6 border-r border-slate-200">${lbl}</th>`;
+       headerRow.innerHTML += `<th class="p-0 h-5 text-center bg-slate-50 font-normal text-[9px] leading-5 w-5 border-r border-slate-200">${lbl}</th>`;
     }
 
     const isDoublesL = !!s.teams.L.player2;
@@ -1185,21 +1332,25 @@
         const teamCode = rowSides[ri];
         const pIdx = rowPlayerIdx[ri];
         const isFirst = (ri === 0 || ri === 2);
-        const isServer = initSrv === teamCode;
+        // S on the actual serving player's row; R on the diagonal receiver's row.
         let sorR = '';
-        if (isFirst) {
-          sorR = isServer ? '<span class="text-green-600">S</span>' : '<span class="text-red-600">R</span>';
+        if (teamCode === initSrv && pIdx === initSrvPIdx) {
+          sorR = '<span class="text-green-600">S</span>';
+        } else if (teamCode === initRcvTeam && pIdx === initRcvPIdx) {
+          sorR = '<span class="text-red-600">R</span>';
         }
         const label = rowNames[ri];
         const bgRow = isFirst ? 'bg-white' : 'bg-slate-50/50';
 
-        let html = `<tr class="border-b border-slate-300 h-6 ${bgRow}">
+        let html = `<tr class="border-b border-slate-300 h-5 ${bgRow}">
                       <td class="p-0 sticky left-0 bg-slate-100 font-bold border-r border-slate-300 text-center text-[10px] z-10">${sorR}</td>
-                      <td class="px-2 py-0 sticky left-6 bg-slate-100 font-bold border-r border-slate-300 text-slate-800 text-[10px] z-10 truncate w-40" title="${label}">${label}</td>`;
+                      <td class="px-1 py-0 sticky left-6 bg-slate-100 font-bold border-r border-slate-300 text-slate-800 text-[10px] z-10 truncate w-32" title="${label}">${label}</td>`;
 
         if (hasStarted) {
-          // Initial 0 only on first row of each team
-          if (isFirst) {
+          // Initial 0 sits on the server's row (serving team) and receiver's row.
+          const isInitRow = (teamCode === initSrv && pIdx === initSrvPIdx) ||
+                            (teamCode === initRcvTeam && pIdx === initRcvPIdx);
+          if (isInitRow) {
             html += `<td class="p-0 text-center border-r border-slate-300 font-bold text-slate-700 bg-white">0</td>`;
           } else {
             html += `<td class="p-0 text-center border-r border-slate-300 bg-white"></td>`;
@@ -1218,14 +1369,11 @@
               if (srvSide === teamCode && srvPIdx === pIdx) {
                 showOnThisRow = true;
               } else if (srvSide !== teamCode) {
-                // This team was RECEIVING. Receiver = player diagonally opposite server.
-                // Server's court: RIGHT if (P1 & srvScore even) OR (P2 & srvScore odd)
-                const srvScore    = srvSide === 'L' ? h.prevL : h.prevR;
-                const rcvPrevScore = teamCode === 'L' ? h.prevL : h.prevR;
-                const serverInRight = srvPIdx === 1 ? (srvScore % 2 === 0) : (srvScore % 2 !== 0);
-                // Receiver in RIGHT → P1 if rcvScore even, P2 if odd
-                // Receiver in LEFT  → P2 if rcvScore even, P1 if odd
-                const rcvRow = serverInRight === (rcvPrevScore % 2 === 0) ? 2 : 1;
+                // This team was RECEIVING and won the rally (service over).
+                // In doubles, the receiver who wins becomes this team's next
+                // server — server.js already recorded that player in lastServerId.
+                // So the point belongs on that same player's row.
+                const rcvRow = (teamCode === 'L' ? h.lastServerIdL : h.lastServerIdR) || 1;
                 if (pIdx === rcvRow) showOnThisRow = true;
               }
             }
@@ -1258,9 +1406,9 @@
         const sorR = isServer ? '<span class="text-green-600">S</span>' : '<span class="text-red-600">R</span>';
         const p1Label = teamInfo.player1 || `TIM ${teamCode}`;
 
-        let html = `<tr class="border-b border-slate-300 h-6 bg-white">
+        let html = `<tr class="border-b border-slate-300 h-5 bg-white">
                       <td class="p-0 sticky left-0 bg-slate-100 font-bold border-r border-slate-300 text-center text-[10px] z-10">${sorR}</td>
-                      <td class="px-2 py-0 sticky left-6 bg-slate-100 font-bold border-r border-slate-300 text-slate-800 text-[10px] z-10 truncate w-40" title="${p1Label}">${p1Label}</td>`;
+                      <td class="px-1 py-0 sticky left-6 bg-slate-100 font-bold border-r border-slate-300 text-slate-800 text-[10px] z-10 truncate w-32" title="${p1Label}">${p1Label}</td>`;
 
         if (hasStarted) {
           html += `<td class="p-0 text-center border-r border-slate-300 font-bold text-slate-700 bg-white">0</td>`;
@@ -1282,29 +1430,33 @@
       tbody.innerHTML = renderSinglesRow('L', s.teams.L) + renderSinglesRow('R', s.teams.R);
     }
 
-    // Auto-scroll: keep the last score column visible.
-    // Use the HEADER row's <th> (always populated for every column) instead of
-    // scanning data cells (which may be empty in the first row for doubles).
+    // Horizontal scroll behaviour for the scoresheet.
     const scrollContainer = tbody.closest('.overflow-x-auto');
-    if (scrollContainer && hasStarted && gameHistory.length > 0) {
-      // Double rAF: first frame commits DOM, second frame reads fresh layout.
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        const hrow = $id('sb-header-row');
-        if (!hrow) return;
-        const ths = hrow.querySelectorAll('th');
-        // th[0]=S/R sticky, th[1]=Name sticky, th[2]=col"0", th[2+N]=score col N
-        const lastTh = ths[2 + gameHistory.length];
-        if (!lastTh) return;
-        const cRect = scrollContainer.getBoundingClientRect();
-        const tRect = lastTh.getBoundingClientRect();
-        // Only scroll if the target column is outside the right edge
-        if (tRect.right > cRect.right - 4) {
-          scrollContainer.scrollTo({
-            left: scrollContainer.scrollLeft + (tRect.right - cRect.right) + 32,
-            behavior: 'smooth'
-          });
-        }
-      }));
+    if (scrollContainer) {
+      if (gameHistory.length === 0) {
+        // Fresh game (match start / next game) → reset scroll to the far left.
+        requestAnimationFrame(() => { scrollContainer.scrollLeft = 0; });
+      } else {
+        // Keep the last score column visible.
+        // Double rAF: first frame commits DOM, second frame reads fresh layout.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          const hrow = $id('sb-header-row');
+          if (!hrow) return;
+          const ths = hrow.querySelectorAll('th');
+          // th[0]=S/R sticky, th[1]=Name sticky, th[2]=col"0", th[2+N]=score col N
+          const lastTh = ths[2 + gameHistory.length];
+          if (!lastTh) return;
+          const cRect = scrollContainer.getBoundingClientRect();
+          const tRect = lastTh.getBoundingClientRect();
+          // Only scroll if the target column is outside the right edge
+          if (tRect.right > cRect.right - 4) {
+            scrollContainer.scrollTo({
+              left: scrollContainer.scrollLeft + (tRect.right - cRect.right) + 32,
+              behavior: 'smooth'
+            });
+          }
+        }));
+      }
     }
   }
 
@@ -1422,17 +1574,12 @@
     if (r.ok) toast(`▶ Lanjut ke Game ${nextGameNum}`, 2000);
   }
 
-  let fontUpdateTimer = null;
+  // Only updates the on-screen size labels; the value is applied on Save (saveAllSetup).
   function debounceFontSizeChange() {
     const nameSize = $id('modal-font-name').value;
     const clubSize = $id('modal-font-club').value;
     $id('modal-font-name-val').textContent = nameSize + 'px';
     $id('modal-font-club-val').textContent = clubSize + 'px';
-    
-    clearTimeout(fontUpdateTimer);
-    fontUpdateTimer = setTimeout(() => {
-      api('/api/config/display-font', { nameSize, clubSize });
-    }, 400);
   }
 
   function resetFontSize(type, val) {
@@ -1444,12 +1591,110 @@
     const s = currentState;
     const tn = s?.tournament || 'Badminton Scoreboard';
     const date = new Date().toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
-    const win = window.open('', '_blank', 'width=750,height=900');
-    // Minimal version of guide for brevity here
-    win.document.write(`<!DOCTYPE html><html><body><h1>Panduan Operator</h1></body></html>`);
+    const win = window.open('', '_blank', 'width=800,height=1000');
+    const steps = [
+      ['⚙', '1. Setup Pertandingan', 'Klik tombol <b>⚙ Setup</b> di kanan atas (③). Isi nama turnamen, lapangan, nama pemain, klub, wasit, dan kategori. Lalu klik <b>💾 SIMPAN &amp; TERAPKAN</b>.'],
+      ['▶', '2. Mulai Match', 'Pada lapangan tengah (⑤), pilih tim yang <b>servis pertama</b>, lalu klik <b>MULAI MATCH</b>. Timer mulai berjalan.'],
+      ['👆', '3. Menambah Poin', 'Cukup <b>KETUK kotak SCORE</b> milik tim yang memenangkan reli (④). Biru = Tim Kiri, Oranye = Tim Kanan. Perpindahan servis otomatis.'],
+      ['↩', '4. Koreksi / Undo', 'Salah ketuk? Tekan tombol bulat <b>↩ UNDO</b> di sisi kiri lapangan (⑦) untuk membatalkan poin terakhir. Bisa berkali-kali.'],
+      ['🏸', '5. Ganti Server', 'Untuk koreksi servis, <b>klik nama pemain di dalam lapangan hijau</b> (⑤). Pemain yang sedang servis ditandai sorotan kuning.'],
+      ['⏱', '6. Interval (Skor 11)', 'Saat satu tim pertama mencapai skor <b>11</b>, layar INTERVAL muncul otomatis. Setelah istirahat, klik <b>▶ Lanjutkan</b>.'],
+      ['▶', '7. Pindah Game', 'Setelah satu game selesai, tombol <b>▶ Lanjut Game</b> muncul di header tengah (⑥). Klik untuk game berikutnya.'],
+      ['🏸👁️', '8. Kok & Challenge', 'Di panel tim (④): <b>🏸 KOK −/+</b> menghitung total kok (kiri kurangi, kanan tambah). <b>👁️ CHAL</b> menampilkan sisa challenge; ketuk untuk memakainya.'],
+      ['⏰', '9. Ubah Waktu', 'Waktu Mulai &amp; Selesai tampil di header (②). <b>Dobel-klik</b> waktu Mulai untuk mengoreksi. Waktu Selesai baru bisa diubah setelah match selesai.'],
+      ['🚑', '10. Walkover', 'Jika satu tim mengundurkan diri, klik <b>🚑 WALKOVER</b> di header (⑥) lalu pilih tim yang <b>MENANG</b>.'],
+      ['📄', '11. Export PDF', 'Klik tombol <b>📄 PDF</b> di sisi kanan lapangan (⑦) kapan saja. Saat match selesai, PDF tersimpan otomatis ke folder <b>exports</b>.'],
+      ['🔄', '12. Reset Match', 'Klik tombol <b>🔄 RESET</b> di sisi kanan lapangan (⑦) untuk pertandingan baru. Semua skor &amp; riwayat dihapus (ada konfirmasi).'],
+      ['⛶', '13. Layar Penuh', 'Klik tombol <b>⛶</b> di kanan atas (③) untuk mode layar penuh. Tekan <b>Esc</b> untuk keluar.'],
+    ];
+    const rows = steps.map(([ic, t, d]) => `
+      <div class="card">
+        <div class="ic">${ic}</div>
+        <div class="body"><div class="t">${t}</div><div class="d">${d}</div></div>
+      </div>`).join('');
+
+    const diagram = `
+      <div class="diagram">
+        <div class="dg-title">🗺️ PETA TAMPILAN CONTROLLER</div>
+        <div class="dg-bar">
+          <span><b class="b">1</b> Turnamen</span>
+          <span class="mid"><b class="b">2</b> Tim A vs B · Mulai/Selesai/Durasi</span>
+          <span><b class="b">3</b> ⚙ ❓ ⛶ Keluar</span>
+        </div>
+        <div class="dg-cols">
+          <div class="dg-col left">
+            <div><b class="b">4</b> TIM KIRI</div>
+            <div class="sub">Klub · Pemain · Set</div>
+            <div class="pill chal">👁️ CHAL</div>
+            <div class="pill kok">🏸 KOK −</div>
+            <div class="pill score blue">SCORE</div>
+          </div>
+          <div class="dg-col center">
+            <div><b class="b">6</b> Timer · Walkover · Game</div>
+            <div class="court"><b class="b">7</b> <span><b class="b">5</b> LAPANGAN</span> <b class="b">7</b></div>
+            <div class="pill tbl"><b class="b">8</b> Tabel Skor (Scoresheet)</div>
+          </div>
+          <div class="dg-col right">
+            <div><b class="b">4</b> TIM KANAN</div>
+            <div class="sub">Klub · Pemain · Set</div>
+            <div class="pill chal">👁️ CHAL</div>
+            <div class="pill kok">🏸 KOK +</div>
+            <div class="pill score orange">SCORE</div>
+          </div>
+        </div>
+        <div class="dg-note">Nomor ①–⑧ pada gambar merujuk ke langkah panduan di bawah.</div>
+      </div>`;
+
+    win.document.write(`<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8">
+      <title>Panduan Operator — ${tn}</title>
+      <style>
+        * { box-sizing: border-box; }
+        @page { size: A4 portrait; margin: 8mm; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #1e293b; margin: 0; padding: 0; font-size: 10px; }
+        header { border-bottom: 2px solid #0e306c; padding-bottom: 6px; margin-bottom: 8px; }
+        header h1 { margin: 0; font-size: 17px; color: #0e306c; }
+        header .sub { color: #475569; font-size: 10px; margin-top: 2px; }
+        /* Layout diagram */
+        .diagram { border:1.5px solid #cbd5e1; border-radius:8px; padding:7px; margin-bottom:9px; background:#f8fafc; break-inside:avoid; }
+        .dg-title { text-align:center; font-weight:800; font-size:11px; margin-bottom:5px; color:#0f172a; }
+        .b { display:inline-flex; align-items:center; justify-content:center; width:13px; height:13px; border-radius:50%; background:#1e293b; color:#fff; font-size:8px; font-weight:900; }
+        .dg-bar { display:flex; align-items:center; justify-content:space-between; gap:5px; background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:4px 7px; font-size:9px; font-weight:700; color:#475569; margin-bottom:6px; }
+        .dg-bar .mid { flex:1; text-align:center; }
+        .dg-cols { display:grid; grid-template-columns:1fr 1.6fr 1fr; gap:5px; font-size:8.5px; font-weight:700; text-align:center; }
+        .dg-col { border:1px solid #cbd5e1; border-radius:6px; padding:5px; }
+        .dg-col.left { background:#eff6ff; } .dg-col.right { background:#fff7ed; } .dg-col.center { background:#f0fdf4; }
+        .dg-col .sub { color:#64748b; margin:2px 0; }
+        .pill { border-radius:999px; padding:2px 3px; margin-top:3px; }
+        .pill.chal { background:#f3e8ff; color:#7e22ce; }
+        .pill.kok { background:#e2e8f0; color:#334155; }
+        .pill.tbl { background:#fff; border:1px solid #cbd5e1; color:#64748b; }
+        .pill.score { color:#fff; padding:5px; font-size:10px; }
+        .pill.score.blue { background:#2563eb; } .pill.score.orange { background:#ea580c; }
+        .court { background:#118B50; color:#fff; border-radius:5px; padding:8px 4px; margin-top:3px; display:flex; align-items:center; justify-content:space-between; }
+        .dg-note { text-align:center; font-size:8px; color:#94a3b8; margin-top:4px; font-style:italic; }
+        /* Steps */
+        .sec-title { font-weight:800; font-size:12px; color:#0f172a; margin:0 0 6px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+        .card { display: flex; gap: 6px; border: 1px solid #cbd5e1; border-radius: 7px; padding: 6px 7px; break-inside: avoid; }
+        .ic { font-size: 14px; min-width: 18px; text-align: center; }
+        .body .t { font-weight: 800; font-size: 10px; color: #0f172a; margin-bottom: 2px; }
+        .body .d { font-size: 8.5px; line-height: 1.3; color: #334155; }
+        .tips { margin-top: 8px; border: 1px solid #fcd34d; background: #fffbeb; border-radius: 7px; padding: 6px 9px; font-size: 9.5px; color: #92400e; }
+        footer { margin-top: 8px; text-align: center; font-size: 8px; color: #94a3b8; }
+      </style></head><body>
+      <header>
+        <h1>🏸 Panduan Operator Scoreboard</h1>
+        <div class="sub">${tn} &nbsp;•&nbsp; Dicetak: ${date}</div>
+      </header>
+      ${diagram}
+      <div class="sec-title">📋 LANGKAH PENGOPERASIAN</div>
+      <div class="grid">${rows}</div>
+      <div class="tips"><b>💡 Tips:</b> Jika layar TV tidak update, minta operator TV menekan <b>F5</b> / <b>Ctrl+R</b>. Pastikan semua perangkat terhubung ke Wi-Fi yang sama. Untuk koreksi cepat, gunakan tombol <b>↩</b> Undo.</div>
+      <footer>Badminton Scoreboard — Panduan Wasit / Operator</footer>
+      </body></html>`);
     win.document.close();
     win.focus();
-    setTimeout(() => win.print(), 400);
+    setTimeout(() => win.print(), 500);
   }
 
   // ───────────────────────────────────────────
@@ -1505,7 +1750,6 @@
     if (currentState) {
       const s = currentState;
       $id('s-tournament').value = s.tournament   || '';
-      $id('s-category').value   = s.category     || 'MS';
       $id('s-court').value      = s.court        || '';
       $id('s-matchno').value    = s.matchNo      || '';
       $id('s-umpire').value     = s.umpire       || '';
@@ -1526,20 +1770,29 @@
         }
         if (!found) dd.selectedIndex = 0;
       });
-      updateCategoryOptions();
+      updateCategoryOptions(s.category || '');
     }
     $id('setup-modal').classList.remove('hidden');
+    checkNewEntries();
   }
 
-  function updateCategoryOptions() {
+  function updateCategoryOptions(preferred) {
     const p2L = $id('p-p2-L').value.trim();
     const p2R = $id('p-p2-R').value.trim();
+    const isDoubles = (p2L !== '' || p2R !== '');
     const isUnbalanced = (p2L !== '' && p2R === '') || (p2L === '' && p2R !== '');
+
     const warningEl = $id('setup-warning');
-    if (warningEl) {
-      if (isUnbalanced) warningEl.classList.remove('hidden');
-      else warningEl.classList.add('hidden');
-    }
+    if (warningEl) warningEl.classList.toggle('hidden', !isUnbalanced);
+
+    const cat = $id('s-category');
+    const cur = (preferred !== undefined) ? preferred : cat.value;
+    const opts = isDoubles
+      ? [['MD',"MD – Men's Doubles"], ['WD',"WD – Women's Doubles"], ['XD',"XD – Mixed Doubles"]]
+      : [['MS',"MS – Men's Singles"], ['WS',"WS – Women's Singles"]];
+    cat.innerHTML = '<option value="">— Pilih Kategori —</option>' +
+      opts.map(([v,l]) => `<option value="${v}">${l}</option>`).join('');
+    cat.value = opts.some(o => o[0] === cur) ? cur : '';
   }
 
   function closeSetup() { $id('setup-modal').classList.add('hidden'); }
@@ -1547,20 +1800,110 @@
     if (e.target === $id('setup-modal')) closeSetup();
   }
 
-  let setupUpdateTimer = null;
-  function debounceSetupUpdate() {
-    clearTimeout(setupUpdateTimer);
-    setupUpdateTimer = setTimeout(async () => {
-      const body = {
-        tournament:   $id('s-tournament').value.trim(),
-        category:     $id('s-category').value,
-        court:        $id('s-court').value.trim(),
-        matchNo:      $id('s-matchno').value.trim(),
-        umpire:       $id('s-umpire').value.trim(),
-        serviceJudge: $id('s-sj').value.trim(),
-      };
-      await api('/api/setup', body);
-    }, 500);
+  // Auto-save disabled — the whole setup is applied only via the Save button.
+  function debounceSetupUpdate() { checkNewEntries(); }
+
+  // Flag any entered value that is not yet in the database (dropdown). This is
+  // informational only — such data is still valid and gets added to the DB on Save.
+  function checkNewEntries() {
+    const map = [
+      ['s-tournament','tournaments','Nama Turnamen'],
+      ['s-court','courts','Lapangan / Court'],
+      ['s-matchno','matchNumbers','Match No'],
+      ['s-umpire','umpires','Wasit'],
+      ['s-sj','umpires','Service Judge'],
+      ['p-club-L','clubs','Klub Tim L'],
+      ['p-club-R','clubs','Klub Tim R'],
+      ['p-p1-L','players','Pemain 1 Tim L'],
+      ['p-p2-L','players','Pemain 2 Tim L'],
+      ['p-p1-R','players','Pemain 1 Tim R'],
+      ['p-p2-R','players','Pemain 2 Tim R'],
+    ];
+    const newOnes = [];
+    map.forEach(([id, type, label]) => {
+      const el = $id(id);
+      if (!el) return;
+      const v = el.value.trim();
+      if (!v) return;
+      const list = dbData[type] || [];
+      const exists = list.some(x => String(x).trim().toLowerCase() === v.toLowerCase());
+      if (!exists) newOnes.push({ label, v });
+    });
+    const box = $id('setup-new-warning');
+    if (!box) return;
+    if (newOnes.length) {
+      box.innerHTML =
+        'ℹ️ <b>Data baru</b> (belum ada di dropdown/database) — tetap bisa dipakai untuk pertandingan ini, namun <b>tidak disimpan ke database</b>:<br>' +
+        newOnes.map(n => `• <b>${escHtml(n.label)}</b>: “${escHtml(n.v)}”`).join('<br>');
+      box.classList.remove('hidden');
+    } else {
+      box.classList.add('hidden');
+    }
+  }
+
+  async function saveAllSetup() {
+    const val = id => $id(id).value.trim();
+    // Required fields (flag/emoji & player 2 are optional)
+    const required = [
+      ['s-tournament','Nama Turnamen'],
+      ['s-court','Lapangan/Court'],
+      ['s-matchno','Match No'],
+      ['s-umpire','Wasit'],
+      ['s-sj','Service Judge'],
+      ['p-club-L','Klub Tim L'],
+      ['p-p1-L','Pemain 1 Tim L'],
+      ['p-club-R','Klub Tim R'],
+      ['p-p1-R','Pemain 1 Tim R'],
+      ['s-category','Kategori Pertandingan'],
+    ];
+    required.forEach(([id]) => $id(id).classList.remove('field-error'));
+    let missing = 0;
+    required.forEach(([id]) => { if (!val(id)) { $id(id).classList.add('field-error'); missing++; } });
+
+    // Player-count balance: both teams tunggal, or both ganda
+    const p2L = val('p-p2-L'), p2R = val('p-p2-R');
+    const unbalanced = (!!p2L) !== (!!p2R);
+    if ($id('setup-warning')) $id('setup-warning').classList.toggle('hidden', !unbalanced);
+
+    if (missing || unbalanced) {
+      toast(missing
+        ? '⚠ Lengkapi semua isian wajib (yang ditandai merah)'
+        : '⚠ Jumlah pemain kedua tim harus sama (tunggal / ganda)', 4000);
+      return;
+    }
+
+    const setupBody = {
+      tournament:   val('s-tournament'),
+      category:     val('s-category'),
+      court:        val('s-court'),
+      matchNo:      val('s-matchno'),
+      umpire:       val('s-umpire'),
+      serviceJudge: val('s-sj'),
+    };
+    const playerBody = {
+      category: val('s-category'),
+      teamL: {
+        flag:    val('p-flag-L'),
+        club:    val('p-club-L'),
+        player1: val('p-p1-L'),
+        player2: val('p-p2-L'),
+      },
+      teamR: {
+        flag:    val('p-flag-R'),
+        club:    val('p-club-R'),
+        player1: val('p-p1-R'),
+        player2: val('p-p2-R'),
+      }
+    };
+    const fontBody = {
+      nameSize: $id('modal-font-name').value,
+      clubSize: $id('modal-font-club').value,
+    };
+    const r1 = await api('/api/setup', setupBody);
+    const r2 = await api('/api/setup-player', playerBody);
+    const r3 = await api('/api/config/display-font', fontBody);
+    if (r1.ok && r2.ok && r3.ok) toast('✅ Pengaturan disimpan & diterapkan', 2500);
+    else toast('⚠ Sebagian pengaturan gagal disimpan', 3000);
   }
 
   // Re-check balance warning when player 2 fields change
@@ -1621,13 +1964,21 @@
     const results = items.filter(v => v.toLowerCase().includes(q)).slice(0, 10);
     if (!results.length) { list.classList.add('hidden'); return; }
     list.innerHTML = results.map(v =>
-      `<div class="ac-item" onmousedown="acSelect('${input.id}','${listId}',this.textContent)">${v}</div>`
+      `<div class="ac-item">
+         <span class="ac-item-text" onmousedown="acSelect('${input.id}','${listId}',this.textContent)">${escHtml(v)}</span>
+         <button type="button" class="ac-item-del" title="Hapus dari database" onmousedown="acDelete(event, this, '${type}')">×</button>
+       </div>`
     ).join('');
     list.classList.remove('hidden');
   }
 
   function acShowAll(inputId, type, listId) {
     const list = $id(listId);
+    // Toggle behaviour: if the dropdown is already open, clicking the button hides it.
+    if (list && !list.classList.contains('hidden')) {
+      list.classList.add('hidden');
+      return;
+    }
     let all = dbData[type] || [];
     if (type === 'players') {
       const used = getUsedPlayers(inputId);
@@ -1639,7 +1990,10 @@
     all = all.sort((a, b) => a.localeCompare(b, 'id'));
     if (!all.length) { list.innerHTML = '<div class="ac-item" style="color:#64748b">— Database kosong / semua nama sudah dipakai —</div>'; list.classList.remove('hidden'); return; }
     list.innerHTML = all.map(v =>
-      `<div class="ac-item" onmousedown="acSelect('${inputId}','${listId}',this.textContent)">${v}</div>`
+      `<div class="ac-item">
+         <span class="ac-item-text" onmousedown="acSelect('${inputId}','${listId}',this.textContent)">${escHtml(v)}</span>
+         <button type="button" class="ac-item-del" title="Hapus dari database" onmousedown="acDelete(event, this, '${type}')">×</button>
+       </div>`
     ).join('');
     list.classList.remove('hidden');
   }
@@ -1647,10 +2001,54 @@
   function acSelect(inputId, listId, val) {
     $id(inputId).value = val;
     $id(listId).classList.add('hidden');
+    $id(inputId).classList.remove('field-error');
     if (inputId.startsWith('p-') && typeof debouncePlayerUpdate === 'function') {
       debouncePlayerUpdate();
+      if (inputId === 'p-p2-L' || inputId === 'p-p2-R') updateCategoryOptions();
     } else if (inputId.startsWith('s-') && typeof debounceSetupUpdate === 'function') {
       debounceSetupUpdate();
+    }
+  }
+
+  // Escape a value for safe insertion into dropdown HTML
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // Delete an entry from the database straight from the dropdown (HTML modal confirm)
+  let pendingDbDelete = null;
+  function acDelete(ev, btn, type) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const item = btn.closest('.ac-item');
+    const list = btn.closest('.ac-list');
+    const val  = item ? item.querySelector('.ac-item-text').textContent.trim() : '';
+    if (!val) return;
+    pendingDbDelete = { type, value: val, item, list };
+    if ($id('db-delete-name')) $id('db-delete-name').textContent = val;
+    $id('db-delete-modal').classList.remove('hidden');
+  }
+
+  function closeDbDelete() {
+    $id('db-delete-modal').classList.add('hidden');
+    pendingDbDelete = null;
+  }
+
+  async function confirmDbDelete() {
+    if (!pendingDbDelete) return;
+    const { type, value, item, list } = pendingDbDelete;
+    $id('db-delete-modal').classList.add('hidden');
+    pendingDbDelete = null;
+    const r = await api('/api/db/remove', { type, value });
+    if (r && r.ok) {
+      if (r.db) dbData = r.db;
+      if (item) item.remove();
+      if (list && !list.querySelector('.ac-item')) list.classList.add('hidden');
+      toast('🗑 "' + value + '" dihapus dari database', 1800);
+    } else {
+      toast('⚠ Gagal menghapus dari database', 2000);
     }
   }
 
@@ -1726,11 +2124,8 @@
     if (e.target === $id('player-setup-modal')) closePlayerSetup();
   }
 
-  let playerUpdateTimer = null;
-  function debouncePlayerUpdate() {
-    clearTimeout(playerUpdateTimer);
-    playerUpdateTimer = setTimeout(savePlayerSetupRealtime, 400);
-  }
+  // Auto-save disabled — players are applied on Save (saveAllSetup).
+  function debouncePlayerUpdate() { checkNewEntries(); }
 
   async function savePlayerSetupRealtime() {
     const body = {

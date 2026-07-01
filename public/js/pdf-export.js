@@ -48,12 +48,69 @@ function fmtDuration(s, e) {
 function teamLabel(team) {
   return [team.player1, team.player2].filter(Boolean).join(' / ') || '—';
 }
+// Shrink font size until text fits within maxW (mm). Returns the size used.
+function fitFont(doc, text, maxW, startSize, minSize) {
+  let size = startSize;
+  doc.setFontSize(size);
+  while (size > minSize && doc.getTextWidth(String(text)) > maxW) {
+    size -= 0.2;
+    doc.setFontSize(size);
+  }
+  return size;
+}
 function checkWinPDF(sL, sR) {
   if (sL >= 30) return 'L';
   if (sR >= 30) return 'R';
   if (sL >= 21 && sL - sR >= 2) return 'L';
   if (sR >= 21 && sR - sL >= 2) return 'R';
   return null;
+}
+
+/* ─── Filename builder (kept identical to pdf-server.js buildFilename so that
+       manual export & auto-export produce the same filename format) ─── */
+function pdfSafe(str, maxLen = 40) {
+  return String(str || '')
+    .replace(/[^\w\u00C0-\u017E \-]/g, '')
+    .trim()
+    .replace(/\s+/g, '_')
+    .slice(0, maxLen);
+}
+function pdfTeamSlug(team) {
+  const p1 = pdfSafe((team.player1 || '').split(' ')[0], 12);
+  const p2 = team.player2 ? pdfSafe((team.player2 || '').split(' ')[0], 8) : '';
+  const namePart = p1 && p2 ? `${p1}-${p2}` : p1;
+  const clubWord = pdfSafe(
+    (team.club || '').replace(/^(PB|PERKUMPULAN)\s+/i, '').split(/\s+/)[0], 10
+  );
+  if (namePart && clubWord) return `${namePart}(${clubWord})`;
+  return namePart || clubWord || '';
+}
+function buildPdfFilename(state) {
+  const s = Object.assign({}, state, {
+    startTime: state.startTime ||
+      (state.matchTimerStart ? new Date(state.matchTimerStart).toISOString() : null),
+  });
+  const ref  = s.endTime ? new Date(s.endTime) : new Date();
+  const pad  = n => String(n).padStart(2, '0');
+  const date = `${ref.getFullYear()}${pad(ref.getMonth() + 1)}${pad(ref.getDate())}`;
+  const time = `${pad(ref.getHours())}${pad(ref.getMinutes())}${pad(ref.getSeconds())}`;
+
+  const slugL = pdfTeamSlug(s.teams.L);
+  const slugR = pdfTeamSlug(s.teams.R);
+  const matchup = slugL && slugR ? `${slugL}_vs_${slugR}` : (slugL || slugR);
+
+  const parts = [
+    'ScoreSheet',
+    pdfSafe(s.tournament, 40) || 'Match',
+    pdfSafe(s.category, 10),
+    s.court   ? 'Court' + pdfSafe(s.court.replace(/^court\s*/i, ''),  12) : '',
+    s.matchNo ? 'No'    + pdfSafe(s.matchNo.replace(/^no\.?\s*/i, ''), 8) : '',
+    matchup,
+    date,
+    time,
+  ].filter(Boolean);
+
+  return parts.join('_') + '.pdf';
 }
 
 /* ─── Main Entry Point ─── */
@@ -87,9 +144,7 @@ function generateScoreSheet(state) {
   for (let g = 1; g <= 3; g++) drawGamePDF(doc, s, g, gY(g), isDoubles, DROW_H, rowsPerSide);
   drawFooterPDF(doc, s, FOOTER_Y);
 
-  const fname = 'ScoreSheet_' +
-    (s.tournament || 'Match').replace(/\s+/g, '_') + '_' +
-    fmtDate(s.startTime).replace(/[\s/]/g, '-') + '.pdf';
+  const fname = buildPdfFilename(s);
   doc.save(fname);
 }
 
@@ -156,7 +211,7 @@ function drawHeaderPDF(doc, state) {
   doc.setFont('helvetica', 'bold');
   doc.text((tL.player1 || '—').slice(0, 30), LX + 13, MY + 7);
   if (tL.player2) {
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.text(tL.player2.slice(0, 30), LX + 13, MY + 12);
   }
@@ -196,20 +251,39 @@ function drawHeaderPDF(doc, state) {
     doc.rect(CX, ry, CW, SC_ROW_H, 'FD');
     doc.setDrawColor(170, 185, 220); doc.rect(CX, ry, CW, SC_ROW_H); doc.setDrawColor(0);
 
-    const vals = [
-      teamLabel(state.teams[side]).slice(0, 24),
+    const team  = state.teams[side];
+    const nameW = colWs[0];
+
+    /* Name cell — doubles: two bold lines; singles: one bold line. Font auto-shrinks to fit (no cutoff). */
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0);
+    if (team.player2) {
+      fitFont(doc, team.player1 || '—', nameW - 3, 6, 4);
+      doc.text(team.player1 || '—', CX + 1.5, ry + 4);
+      fitFont(doc, team.player2, nameW - 3, 6, 4);
+      doc.text(team.player2, CX + 1.5, ry + 8);
+    } else {
+      fitFont(doc, team.player1 || '—', nameW - 3, 7, 5);
+      doc.text(team.player1 || '—', CX + 1.5, ry + 6.2);
+    }
+
+    /* Divider after name column */
+    doc.setDrawColor(170, 185, 220); doc.line(CX + nameW, ry, CX + nameW, ry + SC_ROW_H); doc.setDrawColor(0);
+
+    /* Score columns G1, G2, G3, Set */
+    const scoreVals = [
       '' + state.scores.game1[side],
       '' + state.scores.game2[side],
       '' + state.scores.game3[side],
       '' + state.gamesWon[side]
     ];
-    sx = CX;
-    vals.forEach((v, i) => {
-      doc.setFont('helvetica', i === 0 || i === 4 || isW ? 'bold' : 'normal');
-      doc.setFontSize(i === 0 ? 6.5 : 8.5);
-      doc.text(v, i === 0 ? sx + 1 : sx + colWs[i] / 2, ry + 6.5,
-        { align: i === 0 ? 'left' : 'center', maxWidth: colWs[i] - 2 });
-      if (i < vals.length - 1) {
+    let sx = CX + nameW;
+    scoreVals.forEach((v, j) => {
+      const i = j + 1;
+      doc.setFont('helvetica', (i === 4 || isW) ? 'bold' : 'normal');
+      doc.setFontSize(8.5);
+      doc.text(v, sx + colWs[i] / 2, ry + 6.5, { align: 'center', maxWidth: colWs[i] - 2 });
+      if (i < 4) {
         doc.setDrawColor(170, 185, 220);
         doc.line(sx + colWs[i], ry, sx + colWs[i], ry + SC_ROW_H);
         doc.setDrawColor(0);
@@ -245,7 +319,7 @@ function drawHeaderPDF(doc, state) {
   doc.setFont('helvetica', 'bold');
   doc.text((tR.player1 || '—').slice(0, 27), RX + 13, MY + 7);
   if (tR.player2) {
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.text(tR.player2.slice(0, 27), RX + 13, MY + 12);
   }
@@ -287,6 +361,15 @@ function drawGamePDF(doc, state, gameNum, startY, isDoubles, DROW_H, rowsPerSide
   const sc  = state.scores[gk];
   const gh  = state.history.filter(h => h.game === gameNum);
   const initSrv = gh.length > 0 ? gh[0].prevServer : state.serverSide;
+  // Match the realtime controller: S on the actual serving player's row,
+  // R on the diagonal receiver's row (fixed at game start).
+  const initSrvPIdx = gh.length > 0
+    ? (gh[0].serverPlayerIndex || 1)
+    : ((state.serverP2 && state.serverP2[initSrv]) ? 2 : 1);
+  const initRcvTeam = initSrv === 'L' ? 'R' : 'L';
+  const initRcvPIdx = gh.length > 0
+    ? ((initRcvTeam === 'L' ? gh[0].serverP2L : gh[0].serverP2R) ? 2 : 1)
+    : ((state.serverP2 && state.serverP2[initRcvTeam]) ? 2 : 1);
 
   /* Title bar — different color per game */
   const titleColors = [[14,48,108], [14,88,48], [88,28,14]];
@@ -364,10 +447,10 @@ function drawGamePDF(doc, state, gameNum, startY, isDoubles, DROW_H, rowsPerSide
       doc.setTextColor(0);
     }
 
-    /* S/R cell — only show on the FIRST row of each side, at the start */
-    const isFirstRow = ri === (isL ? 0 : rowsPerSide);
-    const isSrv = rd.side === initSrv && isFirstRow;
-    const isRcv = rd.side !== initSrv && isFirstRow;
+    /* S/R cell — S on the actual serving player's row, R on the receiver's row */
+    const pIdx = (ri % rowsPerSide) + 1;
+    const isSrv = rd.side === initSrv && pIdx === initSrvPIdx;
+    const isRcv = rd.side === initRcvTeam && pIdx === initRcvPIdx;
     doc.setFillColor(isSrv ? 255 : 238, isSrv ? 248 : 238, isSrv ? 195 : 255);
     doc.rect(ML + NAME_W, ry, SR_W, DROW_H, 'FD');
     if (isSrv) {
@@ -384,12 +467,13 @@ function drawGamePDF(doc, state, gameNum, startY, isDoubles, DROW_H, rowsPerSide
       doc.setTextColor(0);
     }
 
-    /* Score cells + column 0 with initial score "0" */
-    const isFirstTeamRow = (ri === 0 && rd.side === 'L') || (ri === rowsPerSide && rd.side === 'R');
+    /* Score cells + column 0 with initial score "0" on the S and R rows */
+    const isInitRow = (rd.side === initSrv && pIdx === initSrvPIdx) ||
+                      (rd.side === initRcvTeam && pIdx === initRcvPIdx);
     const col0rx = GRID_X - CELL_W;
     doc.setFillColor(245, 248, 255);
     doc.rect(col0rx, ry, CELL_W, DROW_H, 'FD');
-    if (isFirstTeamRow) {
+    if (isInitRow) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(5.5);
       doc.setTextColor(60, 80, 140);
@@ -449,16 +533,11 @@ function _drawEntries(doc, gh, baseY, DROW_H, isDoubles, rowsPerSide) {
         // Server's team scored — place on server's row
         rowOffset = (srvSide === 'L' ? 0 : rowsPerSide) + (srvPlayerIdx - 1);
       } else {
-        // Receiver's team scored — place on receiver's row.
-        // Receiver = player diagonally opposite to server.
-        // Server's court: RIGHT if (P1 & srvScore even) OR (P2 & srvScore odd)
+        // Receiving team scored (service over). The receiver who won becomes the
+        // team's next server — recorded in lastServerId. Place the point on that row.
         const rcvSide   = srvSide === 'L' ? 'R' : 'L';
-        const srvScore  = srvSide === 'L' ? entry.prevL : entry.prevR;
-        const rcvScore  = rcvSide === 'L' ? entry.prevL : entry.prevR;
-        const serverInRight  = srvPlayerIdx === 1 ? (srvScore % 2 === 0) : (srvScore % 2 !== 0);
-        // Receiver in RIGHT → P1 row(0) if rcvScore even, P2 row(1) if odd
-        // Receiver in LEFT  → P2 row(1) if rcvScore even, P1 row(0) if odd
-        const rcvPlayerRow = serverInRight === (rcvScore % 2 === 0) ? 1 : 0;
+        const newServerId = (rcvSide === 'L' ? entry.lastServerIdL : entry.lastServerIdR) || 1;
+        const rcvPlayerRow = newServerId - 1;
         rowOffset = (rcvSide === 'L' ? 0 : rowsPerSide) + rcvPlayerRow;
       }
     } else {

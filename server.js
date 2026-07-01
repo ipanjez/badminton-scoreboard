@@ -183,6 +183,7 @@ function createState() {
     // ID of the player currently serving (1 or 2)
     serverP2:     { L: false, R: false },
     lastServerId: { L: 1, R: 1 }, // Used for doubles rotation
+    hasServed:    { L: false, R: false }, // has each team served at least once this game
     // History entry shape:
     // { id, game, time, scorer, scoreL, scoreR,
     //   prevL, prevR, prevServer,
@@ -221,21 +222,33 @@ function addPoint(side) {
     ? (prevSrv === 'L' ? (state.serverP2.L ? 2 : 1) : (state.serverP2.R ? 2 : 1))
     : 1;
 
+  // Snapshot doubles-rotation state BEFORE this point (for correct undo)
+  const preServerP2L     = state.serverP2.L,     preServerP2R     = state.serverP2.R;
+  const preLastServerIdL = state.lastServerId.L, preLastServerIdR = state.lastServerId.R;
+  const preHasServedL    = state.hasServed.L,    preHasServedR    = state.hasServed.R;
+
+  // The team currently serving has now served at least once this game.
+  if (prevSrv) state.hasServed[prevSrv] = true;
+
   sc[side]++;
   if (isServOvr) {
     state.serverSide = side;
-    // BWF doubles: when regaining service, server is determined by the team's
-    // score BEFORE this point (same parity logic used by the scoresheet display).
-    // Even prev-score → player 1 serves; odd → player 2.
+    // Doubles rotation: each time a team RE-gains service, the serving player
+    // ALTERNATES with the partner from the team's previous service turn.
+    // The first time a team ever serves, pick by score parity as the baseline.
     if (state.teams[side].player2) {
-      const prevTeamScore = side === 'L' ? prevL : prevR;
-      const nextServer = (prevTeamScore % 2 === 0) ? 1 : 2;
+      let nextServer;
+      if (state.hasServed[side]) {
+        nextServer = state.lastServerId[side] === 1 ? 2 : 1;
+      } else {
+        const prevTeamScore = side === 'L' ? prevL : prevR;
+        nextServer = (prevTeamScore % 2 === 0) ? 1 : 2;
+      }
       state.serverP2[side] = (nextServer === 2);
       state.lastServerId[side] = nextServer;
     }
   }
-  // BWF: serving team retaining service keeps the SAME server —
-  // physical positions swap on court but serverP2/lastServerId stay unchanged.
+  // Serving team retaining service keeps the SAME server (positions swap on court).
 
   // Interval: first time either team reaches 11 in this game
   let isIntervalNow = false;
@@ -277,10 +290,14 @@ function addPoint(side) {
     prevR,
     prevServer:   prevSrv,
     serverSide:   prevSrv,
-    serverP2L:    state.serverP2.L, // store to restore
+    serverP2L:    state.serverP2.L, // post-point (used by scoresheet display)
     serverP2R:    state.serverP2.R,
     lastServerIdL: state.lastServerId.L,
     lastServerIdR: state.lastServerId.R,
+    // pre-point snapshots (used to undo the doubles rotation correctly)
+    preServerP2L, preServerP2R,
+    preLastServerIdL, preLastServerIdR,
+    preHasServedL, preHasServedR,
     serverPlayerIndex: prevServerPlayerIndex,
     isServiceOver: isServOvr,
     isInterval:   isIntervalNow,
@@ -300,12 +317,21 @@ function undoLast() {
   state.scores[key].L = last.prevL;
   state.scores[key].R = last.prevR;
 
-  // Restore server & active game
+  // Restore server & active game (use pre-point snapshots when available)
   state.serverSide = last.prevServer;
-  if ('serverP2L' in last) state.serverP2.L = last.serverP2L;
-  if ('serverP2R' in last) state.serverP2.R = last.serverP2R;
-  if ('lastServerIdL' in last) state.lastServerId.L = last.lastServerIdL;
-  if ('lastServerIdR' in last) state.lastServerId.R = last.lastServerIdR;
+  if ('preServerP2L' in last) {
+    state.serverP2.L = last.preServerP2L;
+    state.serverP2.R = last.preServerP2R;
+    state.lastServerId.L = last.preLastServerIdL;
+    state.lastServerId.R = last.preLastServerIdR;
+    state.hasServed.L = last.preHasServedL;
+    state.hasServed.R = last.preHasServedR;
+  } else {
+    if ('serverP2L' in last) state.serverP2.L = last.serverP2L;
+    if ('serverP2R' in last) state.serverP2.R = last.serverP2R;
+    if ('lastServerIdL' in last) state.lastServerId.L = last.lastServerIdL;
+    if ('lastServerIdR' in last) state.lastServerId.R = last.lastServerIdR;
+  }
   state.activeGame = last.game;
 
   // Restore interval
@@ -461,12 +487,6 @@ app.post('/api/setup', requireAuth, (req, res) => {
   state.umpire       = String(b.umpire       || '').trim().slice(0, 100);
   state.serviceJudge = String(b.serviceJudge || '').trim().slice(0, 100);
 
-  if (b.umpire) dbAdd('umpires', b.umpire);
-  if (b.serviceJudge) dbAdd('umpires', b.serviceJudge);
-  if (b.tournament) dbAdd('tournaments', b.tournament);
-  if (b.court) dbAdd('courts', b.court);
-  if (b.matchNo) dbAdd('matchNumbers', b.matchNo);
-
   state.isSetupComplete = true;
   broadcast();
   res.json({ ok: true, state });
@@ -487,10 +507,6 @@ app.post('/api/setup-player', requireAuth, (req, res) => {
       if (t.player2 !== undefined) state.teams[side].player2 = String(t.player2).trim().slice(0, 100);
       if (t.club !== undefined)    state.teams[side].club    = String(t.club).trim().slice(0, 100);
       if (t.flag !== undefined)    state.teams[side].flag    = String(t.flag).trim().slice(0, 10);
-      
-      // Auto-add to DB
-      [t.player1, t.player2].filter(Boolean).forEach(p => dbAdd('players', p));
-      if (t.club) dbAdd('clubs', t.club);
     }
   });
 
@@ -603,6 +619,7 @@ app.post('/api/next-game', requireAuth, (req, res) => {
   state.activeGame++;
   state.isInterval = false;
   state.challenges = { L: 2, R: 2 }; // Reset challenges per game
+  state.hasServed  = { L: false, R: false }; // reset doubles service-turn tracking
   broadcast();
   res.json({ ok: true });
 });
@@ -658,6 +675,9 @@ app.post('/api/adjust-time', requireAuth, (req, res) => {
     }
   }
   if (endTime) {
+    if (!state.isMatchOver) {
+      return res.status(400).json({ ok: false, msg: 'Waktu selesai hanya bisa diubah setelah pertandingan selesai' });
+    }
     const d = new Date(endTime);
     if (!isNaN(d.getTime())) {
       state.endTime = d.toISOString();
