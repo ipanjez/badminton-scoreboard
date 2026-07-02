@@ -84,7 +84,7 @@
   │ 📱 HP Penonton  │ http://192.168.1.43:3000/viewer                  │
   │                 │ (tampilan skor live, read-only)                   │
   ├─────────────────┼──────────────────────────────────────────────────┤
-  │ ⚙  Panel Admin  │ http://192.168.1.43:3000/manage                  │
+  │ ⚙  Panel Admin  │ http://192.168.1.43:3000/admin                   │
   │                 │ (kelola database, PIN, konfigurasi court)         │
   ├─────────────────┼──────────────────────────────────────────────────┤
   │ 📖 Tutorial     │ http://192.168.1.43:3000/tutorial                │
@@ -107,7 +107,7 @@
   3. Simpan file
   4. Restart server (jalankan ulang MULAI.bat)
 
-  Atau bisa diubah dari Panel Admin (/manage) → tab "Ubah PIN"
+  Atau bisa diubah dari Panel Admin (/admin) → tab "Ubah PIN"
   (tetap perlu restart server setelah menyimpan PIN baru).
 
 
@@ -123,7 +123,7 @@
      → Tambah/hapus nama, lalu simpan (Ctrl+S)
      → Server membaca ulang OTOMATIS — tidak perlu restart!
 
-  B. Atau lewat Panel Admin di browser (/manage → tab "Database Nama")
+  B. Atau lewat Panel Admin di browser (/admin → tab "Database Nama")
      → Tambah/hapus nama langsung dari browser
 
   Nama yang pernah diisi di form Setup juga tersimpan otomatis.
@@ -186,7 +186,7 @@
   │   ├── display.html     ← Tampilan TV
   │   ├── viewer.html      ← Tampilan HP penonton
   │   ├── controller.html  ← Panel wasit
-  │   ├── manage.html      ← Panel admin
+  │   ├── admin.html       ← Panel admin
   │   ├── tutorial.html    ← Panduan cetak
   │   └── js/
   │       └── pdf-export.js  ← Generator PDF score sheet

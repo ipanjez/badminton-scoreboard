@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="/favicon-display.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/favicon-display.svg" type="image/svg+xml">
   <title>Badminton Score Display</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -208,15 +208,6 @@
 
 </div><!-- /app -->
 
-<!-- Interval Overlay (score = 11) -->
-<div class="overlay hidden" id="ov-interval">
-  <div class="overlay-pulse" style="text-align:center">
-    <div class="ov-title">INTERVAL</div>
-    <div class="ov-score" id="ov-int-score">0 – 0</div>
-    <div class="ov-sub">Istirahat 60 detik</div>
-  </div>
-</div>
-
 <script src="/socket.io/socket.io.js"></script>
 <script>
   // Team color config
@@ -308,14 +299,7 @@
       }
     });
 
-    // Interval overlay only
-    if (s.isInterval && !s.isMatchOver) {
-      const gk = `game${s.activeGame}`;
-      $id('ov-int-score').textContent = `${s.scores[gk].L} – ${s.scores[gk].R}`;
-      $id('ov-interval').classList.remove('hidden');
-    } else {
-      $id('ov-interval').classList.add('hidden');
-    }
+
   }
 </script>
 </body>

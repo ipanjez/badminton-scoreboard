@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <meta name="theme-color" content="#0f172a">
-  <link rel="icon" href="/favicon-viewer.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/favicon-viewer.svg" type="image/svg+xml">
   <title>Skor Live — Badminton</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -62,7 +62,7 @@
           <!-- Set history -->
           <div class="flex gap-1.5 items-center" id="v-hist-L"></div>
           <!-- Score -->
-          <div class="score-num text-6xl font-black min-w-[72px] text-right rounded-xl px-3 py-1 transition-all" id="v-score-L">0</div>
+          <div class="score-num text-5xl font-black min-w-[64px] text-right rounded-xl px-2 py-1 transition-all" id="v-score-L">0</div>
         </div>
       </div>
 
@@ -81,7 +81,7 @@
             </div>
           </div>
           <div class="flex gap-1.5 items-center" id="v-hist-R"></div>
-          <div class="score-num text-6xl font-black min-w-[72px] text-right rounded-xl px-3 py-1 transition-all" id="v-score-R">0</div>
+          <div class="score-num text-5xl font-black min-w-[64px] text-right rounded-xl px-2 py-1 transition-all" id="v-score-R">0</div>
         </div>
       </div>
 
@@ -91,13 +91,6 @@
     <div class="mt-3 text-center">
       <span class="text-slate-400 text-xs">Servis: </span>
       <span class="text-yellow-400 font-bold text-sm" id="v-serve-label">—</span>
-    </div>
-
-    <!-- Interval Banner -->
-    <div id="v-interval-banner" class="hidden mt-4 bg-yellow-500/20 border border-yellow-500/50 rounded-2xl p-4 text-center">
-      <div class="text-yellow-400 font-black text-xl">⏱ INTERVAL</div>
-      <div class="text-white text-base mt-1" id="v-int-score">0 – 0</div>
-      <div class="text-yellow-300/70 text-xs mt-1">Istirahat 60 detik</div>
     </div>
 
     <!-- Match Over Banner -->
@@ -207,13 +200,7 @@
         $id('v-mo-winner').textContent = teamName(s.teams[s.winner]);
         $id('v-mo-score').textContent  = `${s.gamesWon.L}–${s.gamesWon.R} (${parts.join(', ')})`;
         $id('v-matchover-banner').classList.remove('hidden');
-        $id('v-interval-banner').classList.add('hidden');
-      } else if (s.isInterval) {
-        $id('v-int-score').textContent = `${sc.L} – ${sc.R}`;
-        $id('v-interval-banner').classList.remove('hidden');
-        $id('v-matchover-banner').classList.add('hidden');
       } else {
-        $id('v-interval-banner').classList.add('hidden');
         $id('v-matchover-banner').classList.add('hidden');
       }
     }

@@ -301,7 +301,8 @@ function drawHeaderPDF(doc, state) {
     doc.setFontSize(6.5);
     doc.setTextColor(40, 55, 120);
     doc.text('Umpire: ' + (state.umpire || '—'), CX + 2, uY + 3.5);
-    doc.text('Service Judge: ' + (state.serviceJudge || '—'), CX + CW / 2 + 2, uY + 3.5);
+    const sjs = [state.serviceJudge1, state.serviceJudge2, state.serviceJudge3, state.serviceJudge4].filter(Boolean).join(', ');
+    doc.text('Service Judge: ' + (sjs || '—'), CX + CW / 2 + 2, uY + 3.5);
     doc.setTextColor(0);
   }
 
@@ -638,7 +639,8 @@ function drawFooterPDF(doc, state, footerY) {
   /* Signature boxes */
   const sigTop = fY + 11;
   const sigW = 65, sigH = 32;
-  [['Wasit / Umpire', state.umpire], ['Referee', state.serviceJudge || '']].forEach(([label, name], i) => {
+  const sjsArr = [state.serviceJudge1, state.serviceJudge2, state.serviceJudge3, state.serviceJudge4].filter(Boolean).join(', ');
+  [['Wasit / Umpire', state.umpire], ['Referee', sjsArr || '']].forEach(([label, name], i) => {
     const sx = ML + i * (sigW + 12);
     doc.setDrawColor(100, 120, 170);
     doc.rect(sx, sigTop, sigW, sigH);

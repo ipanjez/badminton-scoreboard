@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="/favicon-manage.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/favicon-controller.svg" type="image/svg+xml">
   <title>Panel Admin — Badminton Scoreboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
   <style>
     body { font-family: Arial, sans-serif; }
     .tab-btn.active { background: #fbbf24; color: #000; font-weight: 700; }
@@ -43,7 +44,6 @@
   <div class="flex gap-2 mb-6 bg-slate-900 p-1 rounded-2xl">
     <button onclick="switchTab('db')"     class="tab-btn flex-1 py-3 rounded-xl text-sm font-bold transition-all" id="tab-db">📋 Database Nama</button>
     <button onclick="switchTab('courts')" class="tab-btn flex-1 py-3 rounded-xl text-sm font-bold transition-all" id="tab-courts">🏟 Konfigurasi Court</button>
-    <button onclick="switchTab('pin')"    class="tab-btn flex-1 py-3 rounded-xl text-sm font-bold transition-all" id="tab-pin">🔐 Ubah PIN</button>
   </div>
 
   <!-- ── TAB: DATABASE ── -->
@@ -96,13 +96,26 @@
     <!-- Wasit -->
     <div class="bg-slate-900 rounded-2xl p-5">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="font-black text-green-300 text-lg">🎙 Wasit / Service Judge</h3>
+        <h3 class="font-black text-green-300 text-lg">🎙 Wasit</h3>
         <span class="badge" id="badge-umpires">0</span>
       </div>
       <div id="chips-umpires" class="mb-4 min-h-[40px]"></div>
       <div class="flex gap-2">
         <input id="add-umpire" type="text" placeholder="Nama wasit baru..." maxlength="100" class="flex-1">
         <button onclick="addItem('umpires','add-umpire')" class="bg-green-800 hover:bg-green-700 px-4 py-2 rounded-xl font-bold text-sm">+ Tambah</button>
+      </div>
+    </div>
+
+    <!-- Service Judge -->
+    <div class="bg-slate-900 rounded-2xl p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-black text-teal-300 text-lg">⚖️ Service Judge</h3>
+        <span class="badge" id="badge-serviceJudges">0</span>
+      </div>
+      <div id="chips-serviceJudges" class="mb-4 min-h-[40px]"></div>
+      <div class="flex gap-2">
+        <input id="add-serviceJudge" type="text" placeholder="Nama service judge baru..." maxlength="100" class="flex-1">
+        <button onclick="addItem('serviceJudges','add-serviceJudge')" class="bg-teal-800 hover:bg-teal-700 px-4 py-2 rounded-xl font-bold text-sm">+ Tambah</button>
       </div>
     </div>
     <!-- Lapangan -->
@@ -143,7 +156,7 @@
     <div class="bg-slate-900/60 rounded-2xl p-4 text-sm text-slate-400 mb-6">
       <strong class="text-yellow-400">💡 Multi Court:</strong>
       Setiap court berjalan sebagai server terpisah dengan PORT dan PIN berbeda.
-      Setelah menyimpan, gunakan <code class="bg-slate-800 px-1 rounded text-green-300">tools/MULAI.bat</code> untuk menjalankan semua court sekaligus.
+      Atur jumlah court, isi PIN dan PORT masing-masing, lalu klik <strong class="text-emerald-400">▶ Jalankan Court Aktif</strong>.
     </div>
 
     <div class="mb-6 rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
@@ -172,44 +185,28 @@
     </div>
 
     <div class="mt-6 bg-slate-900 rounded-2xl p-5">
-      <h3 class="font-bold text-slate-300 mb-3">Cara Menjalankan Multi Court</h3>
-      <div class="space-y-2 text-sm text-slate-400">
-        <div class="bg-slate-800 rounded-xl p-3 font-mono text-green-300">
-          # Dari folder Badminton:<br>
-          node -r dotenv/config server.js dotenv_config_path=.env.court1<br>
-          node -r dotenv/config server.js dotenv_config_path=.env.court2<br>
-          node -r dotenv/config server.js dotenv_config_path=.env.court3
+      <h3 class="font-bold text-slate-300 mb-3">ℹ Panduan Multi Court</h3>
+      <div class="space-y-3 text-sm text-slate-400">
+        <div class="flex items-start gap-3">
+          <span class="text-yellow-400 font-bold text-lg leading-none">1</span>
+          <p>Pilih jumlah court (1–6) dan isi <strong class="text-slate-200">PIN</strong> serta <strong class="text-slate-200">PORT</strong> untuk masing-masing court.</p>
         </div>
-        <p>Atau klik <strong>tools/MULAI.bat → pilih opsi 2</strong> untuk menjalankan semua sekaligus.</p>
+        <div class="flex items-start gap-3">
+          <span class="text-yellow-400 font-bold text-lg leading-none">2</span>
+          <p>Klik <strong class="text-yellow-300">💾 Simpan Konfigurasi Court</strong> untuk menyimpan pengaturan.</p>
+        </div>
+        <div class="flex items-start gap-3">
+          <span class="text-yellow-400 font-bold text-lg leading-none">3</span>
+          <p>Klik <strong class="text-emerald-400">▶ Jalankan Court Aktif</strong> untuk menjalankan semua court yang dicentang. Status akan berubah menjadi <span class="text-emerald-300 font-bold">● BERJALAN</span>.</p>
+        </div>
+        <div class="bg-slate-800/50 rounded-xl p-3 text-xs text-slate-500 mt-2">
+          <strong class="text-slate-400">💡 Tips:</strong> Setiap court memiliki PIN sendiri. Wasit masing-masing court menggunakan PIN yang sudah diatur di atas untuk login ke Controller.
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- ── TAB: PIN ── -->
-  <div id="panel-pin" class="tab-panel hidden">
-    <div class="bg-slate-900 rounded-2xl p-6 max-w-sm mx-auto mt-4">
-      <h3 class="font-black text-xl mb-2">🔐 Ubah PIN Controller</h3>
-      <p class="text-slate-400 text-sm mb-6">
-        PIN saat ini berlaku untuk server yang sedang berjalan (<code class="text-yellow-400">PORT: <span id="cur-port">—</span></code>).
-        Perubahan PIN memerlukan <strong>restart server</strong>.
-      </p>
 
-      <label class="block text-slate-400 text-xs mb-1 font-bold">PIN BARU (4–20 karakter)</label>
-      <input id="new-pin" type="password" placeholder="Masukkan PIN baru" maxlength="20" class="w-full mb-2">
-      <input id="new-pin-confirm" type="password" placeholder="Ulangi PIN" maxlength="20" class="w-full mb-4">
-
-      <div id="pin-msg" class="hidden text-sm rounded-xl p-3 mb-4"></div>
-
-      <button onclick="changePin()" class="w-full bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-black py-3 rounded-xl">
-        Simpan PIN
-      </button>
-
-      <div class="mt-4 bg-amber-900/30 border border-amber-700/50 rounded-xl p-3 text-xs text-amber-300">
-        ⚠ Setelah menyimpan, <strong>restart server</strong> agar PIN baru berlaku.<br>
-        (Hentikan dengan Ctrl+C lalu jalankan ulang)
-      </div>
-    </div>
-  </div>
 
 </div><!-- /max-w -->
 
@@ -222,13 +219,11 @@
   fetch('/api/db').then(r => r.json()).then(d => { dbData = d; renderAll(); });
   fetch('/api/courts').then(r => r.json()).then(d => { courtsData = d; renderCourts(); });
   fetch('/api/info').then(r => r.json()).then(d => { serverInfo = d; renderCourts(); });
-  fetch('/api/state').then(r => r.json()).then(() => {
-    document.getElementById('cur-port').textContent = location.port || '3000';
-  });
+
 
   // ── Tabs ──
   function switchTab(name) {
-    ['db','courts','pin'].forEach(t => {
+    ['db','courts'].forEach(t => {
       document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
       document.getElementById('tab-' + t).classList.toggle('active', t === name);
     });
@@ -241,25 +236,60 @@
     renderChips('players', 'blue');
     renderChips('clubs',   'orange');
     renderChips('umpires', 'green');
+    renderChips('serviceJudges', 'teal');
     renderChips('courts',       'blue');
     renderChips('matchNumbers', 'blue');
   }
 
+  const sortables = {};
+  
+  function addSortButtons(type) {
+    const badge = document.getElementById('badge-' + type);
+    if (!badge || badge.previousElementSibling?.classList.contains('sort-controls')) return;
+    const ctrl = document.createElement('div');
+    ctrl.className = 'sort-controls flex gap-1 ml-auto mr-3';
+    ctrl.innerHTML = `
+      <button onclick="sortList('${type}', 1)" title="Urutkan A-Z" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white font-bold transition">A-Z</button>
+      <button onclick="sortList('${type}', -1)" title="Urutkan Z-A" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white font-bold transition">Z-A</button>
+    `;
+    badge.parentNode.insertBefore(ctrl, badge);
+  }
+
+  function sortList(type, dir) {
+    if (!dbData[type]) return;
+    dbData[type].sort((a,b) => dir * a.localeCompare(b, 'id'));
+    renderChips(type);
+    api('/api/db/reorder', { type, list: dbData[type] });
+  }
+
   function renderChips(type, color) {
-    const colors = { blue: '#1d4ed8', orange: '#c2410c', green: '#15803d' };
     const container = document.getElementById('chips-' + type);
     const badge     = document.getElementById('badge-' + type);
     
-    // Fallback if data is missing from server (e.g. server hasn't restarted yet)
+    // Fallback if data is missing from server
     if (!dbData[type]) dbData[type] = [];
     
     badge.textContent = dbData[type].length;
     container.innerHTML = dbData[type].map(v =>
-      `<span class="chip">
+      `<span class="chip cursor-grab active:cursor-grabbing">
         ${esc(v)}
         <button onclick="removeItem('${type}','${esc(v)}')" title="Hapus">×</button>
       </span>`
     ).join('');
+
+    addSortButtons(type);
+    
+    if (!sortables[type] && typeof Sortable !== 'undefined') {
+      sortables[type] = new Sortable(container, {
+        animation: 150,
+        ghostClass: 'opacity-50',
+        onEnd: function() {
+          const newOrder = Array.from(container.children).map(el => el.childNodes[0].nodeValue.trim()).filter(Boolean);
+          dbData[type] = newOrder;
+          api('/api/db/reorder', { type, list: newOrder });
+        }
+      });
+    }
   }
 
   function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -280,8 +310,8 @@
   }
 
   // Enter key support
-  ['add-tournament','add-player','add-club','add-umpire','add-court','add-matchno'].forEach((id, i) => {
-    const types = ['tournaments','players','clubs','umpires','courts','matchNumbers'];
+  ['add-tournament','add-player','add-club','add-umpire','add-serviceJudge','add-court','add-matchno'].forEach((id, i) => {
+    const types = ['tournaments','players','clubs','umpires','serviceJudges','courts','matchNumbers'];
     document.getElementById(id).addEventListener('keydown', e => {
       if (e.key === 'Enter') addItem(types[i], id);
     });
@@ -334,7 +364,7 @@
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-slate-500 w-24 flex-shrink-0">🔧 Admin</span>
-            <a href="${base}/manage" target="_blank" class="text-green-400 hover:underline">${base}/manage</a>
+            <a href="${base}/admin" target="_blank" class="text-green-400 hover:underline">${base}/admin</a>
           </div>
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-slate-500 w-24 flex-shrink-0">💻 Localhost</span>
@@ -381,7 +411,11 @@
       // Give the new processes a moment to boot, then refresh the running status
       setTimeout(() => {
         fetch('/api/courts').then(x => x.json()).then(d => { courtsData = d; renderCourts(); });
-      }, 2500);
+      }, 3000);
+      // Second poll in case some courts need more time to start
+      setTimeout(() => {
+        fetch('/api/courts').then(x => x.json()).then(d => { courtsData = d; renderCourts(); });
+      }, 6000);
     } else {
       alert('⚠ Gagal menjalankan court: ' + (r.msg || 'Server error'));
     }
@@ -408,23 +442,7 @@
     renderCourts();
   }
 
-  // ── PIN change ──
-  async function changePin() {
-    const pin    = document.getElementById('new-pin').value;
-    const pinC   = document.getElementById('new-pin-confirm').value;
-    const msgEl  = document.getElementById('pin-msg');
-    if (pin.length < 4) return showMsg('PIN minimal 4 karakter', 'red');
-    if (pin !== pinC)   return showMsg('PIN tidak cocok', 'red');
-    const r = await api('/api/config/pin', { pin });
-    showMsg(r.msg || (r.ok ? 'Berhasil' : 'Gagal'), r.ok ? 'green' : 'red');
-  }
 
-  function showMsg(msg, color) {
-    const el = document.getElementById('pin-msg');
-    el.textContent = msg;
-    el.className = `text-sm rounded-xl p-3 mb-4 ${color === 'green' ? 'bg-green-900/40 text-green-300 border border-green-700' : 'bg-red-900/40 text-red-300 border border-red-700'}`;
-    el.classList.remove('hidden');
-  }
 
   // ── Excel shortcut ──
   function openExcel() {

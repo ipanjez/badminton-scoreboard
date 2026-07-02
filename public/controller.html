@@ -237,8 +237,8 @@
         <div class="flex items-center gap-2 flex-shrink-0">
           <div class="text-white font-mono text-base bg-slate-800 px-4 py-1.5 rounded-full border border-slate-700 shadow-inner" id="match-timer-display">00:00</div>
           <button id="btn-next-game" onclick="nextGame()" class="hidden animate-pulse bg-green-600 hover:bg-green-500 text-white font-black px-5 py-2 rounded-full text-sm uppercase tracking-wide shadow-[0_0_20px_rgba(22,163,74,0.9)] ring-2 ring-green-300 transition flex items-center gap-1.5" title="Lanjut Game Berikutnya">👉 ▶ LANJUT GAME</button>
-          <button onclick="triggerWalkover()" class="bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 font-bold px-4 py-1.5 rounded-full text-xs shadow-sm flex items-center gap-1 transition" title="Menang Walkover">🚑 WALKOVER</button>
-          <button onclick="openCardModal()" class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-400 font-bold px-4 py-1.5 rounded-full text-xs shadow-sm flex items-center gap-1 transition" title="Pelanggaran / Kartu">🃏 PELANGGARAN</button>
+          <button id="btn-walkover" onclick="triggerWalkover()" class="bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 font-bold px-4 py-1.5 rounded-full text-xs shadow-sm flex items-center gap-1 transition" title="Menang Walkover">🚑 WALKOVER</button>
+          <button id="btn-cards" onclick="openCardModal()" class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-400 font-bold px-4 py-1.5 rounded-full text-xs shadow-sm flex items-center gap-1 transition" title="Pelanggaran / Kartu">🃏 PELANGGARAN</button>
         </div>
         <div id="c-prev-games" class="flex gap-1.5 text-xs justify-end min-w-0 overflow-hidden">
           <!-- Populated by JS -->
@@ -450,7 +450,7 @@
 <div id="setup-modal" class="modal-bg hidden" onclick="closeSetupOutside(event)">
   <div class="bg-white rounded-3xl w-full max-w-6xl border border-slate-400 shadow-2xl flex flex-col" style="max-height: 95vh;" onclick="event.stopPropagation()">
     <div class="px-6 py-4 border-b border-slate-400 flex items-center justify-between bg-slate-200/50 rounded-t-3xl">
-      <h2 class="text-slate-900 font-black text-2xl flex items-center gap-3">⚙ SETUP PERTANDINGAN &amp; PEMAIN <a href="/manage" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-xl flex items-center justify-center text-base transition flex-shrink-0" title="Panel Admin">🔧</a></h2>
+      <h2 class="text-slate-900 font-black text-2xl flex items-center gap-3">⚙ SETUP PERTANDINGAN &amp; PEMAIN <a href="/admin" target="_blank" class="bg-slate-700 hover:bg-slate-600 text-white w-8 h-8 rounded-xl flex items-center justify-center text-base transition flex-shrink-0" title="Panel Admin">🔧</a></h2>
       <button onclick="closeSetup()" class="text-slate-600 hover:text-slate-900 text-3xl leading-none font-bold">×</button>
     </div>
     
@@ -461,47 +461,29 @@
         
         <div class="mb-4">
             <label class="text-sm font-bold text-slate-700">NAMA TURNAMEN <span class="text-red-500">*</span></label>
-            <div class="ac-wrap w-full mt-1">
-              <input id="s-tournament" type="text" placeholder="Cth: Pupuk Kaltim Open 2025" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold"
-                oninput="acSearch(this,'tournaments','ac-tournament'); debounceSetupUpdate()" onblur="acHide('ac-tournament',300)">
-              <button type="button" onmousedown="acShowAll('s-tournament','tournaments','ac-tournament')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-              <div id="ac-tournament" class="ac-list hidden"></div>
-            </div>
+            <input type="hidden" id="s-tournament" onchange="debounceSetupUpdate()">
           </div>
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label class="text-sm font-bold text-slate-700">LAPANGAN / COURT <span class="text-red-500">*</span></label>
-            <div class="ac-wrap w-full mt-1">
-              <input id="s-court" type="text" placeholder="Court 1" maxlength="20" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white text-center font-bold" oninput="acSearch(this,'courts','ac-court'); debounceSetupUpdate()" onblur="acHide('ac-court',300)">
-              <button type="button" onmousedown="acShowAll('s-court','courts','ac-court')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-              <div id="ac-court" class="ac-list hidden"></div>
-            </div>
+            <input type="hidden" id="s-court" onchange="debounceSetupUpdate()">
           </div>
           <div>
             <label class="text-sm font-bold text-slate-700">MATCH NO <span class="text-red-500">*</span></label>
-            <div class="ac-wrap w-full mt-1">
-              <input id="s-matchno" type="text" placeholder="QF-3" maxlength="20" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white text-center font-bold" oninput="acSearch(this,'matchNumbers','ac-matchno'); debounceSetupUpdate()" onblur="acHide('ac-matchno',300)">
-              <button type="button" onmousedown="acShowAll('s-matchno','matchNumbers','ac-matchno')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-              <div id="ac-matchno" class="ac-list hidden"></div>
-            </div>
+            <input type="hidden" id="s-matchno" onchange="debounceSetupUpdate()">
           </div>
           <div>
             <label class="text-sm font-bold text-slate-700">WASIT (UMPIRE) <span class="text-red-500">*</span></label>
-            <div class="ac-wrap w-full mt-1">
-              <input id="s-umpire" type="text" placeholder="Nama Wasit" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold"
-                oninput="acSearch(this,'umpires','ac-umpire'); debounceSetupUpdate()" onblur="acHide('ac-umpire',300)">
-              <button type="button" onmousedown="acShowAll('s-umpire','umpires','ac-umpire')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-              <div id="ac-umpire" class="ac-list hidden"></div>
-            </div>
+            <input type="hidden" id="s-umpire" onchange="debounceSetupUpdate()">
           </div>
-          <div>
-            <label class="text-sm font-bold text-slate-700">SERVICE JUDGE <span class="text-red-500">*</span></label>
-            <div class="ac-wrap w-full mt-1">
-              <input id="s-sj" type="text" placeholder="Nama Service Judge" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold"
-                oninput="acSearch(this,'umpires','ac-sj'); debounceSetupUpdate()" onblur="acHide('ac-sj',300)">
-              <button type="button" onmousedown="acShowAll('s-sj','umpires','ac-sj')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-              <div id="ac-sj" class="ac-list hidden"></div>
+          <div class="col-span-2 lg:col-span-4 mt-2 border-t border-slate-200 pt-4">
+            <label class="text-sm font-bold text-slate-700 block mb-2">SERVICE JUDGE / HAKIM GARIS</label>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <input type="hidden" id="s-sj1" onchange="debounceSetupUpdate()">
+              <input type="hidden" id="s-sj2" onchange="debounceSetupUpdate()">
+              <input type="hidden" id="s-sj3" onchange="debounceSetupUpdate()">
+              <input type="hidden" id="s-sj4" onchange="debounceSetupUpdate()">
             </div>
           </div>
         </div>
@@ -537,29 +519,17 @@
             </div>
             <div class="flex-1 min-w-0">
               <label class="text-xs font-bold text-slate-700 truncate block">NAMA KLUB / PB <span class="text-red-500">*</span></label>
-              <div class="ac-wrap w-full mt-1">
-                <input id="p-club-L" type="text" placeholder="PB Djarum" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'clubs','pac-club-L'); debounceSetupUpdate()" onblur="acHide('pac-club-L',300)">
-                <button type="button" onmousedown="acShowAll('p-club-L','clubs','pac-club-L')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-                <div id="pac-club-L" class="ac-list hidden"></div>
-              </div>
+              <input type="hidden" id="p-club-L" onchange="debounceSetupUpdate()">
             </div>
           </div>
           <div class="space-y-4">
             <div>
               <label class="text-sm font-bold text-slate-700">PEMAIN 1 <span class="text-red-500">*</span></label>
-              <div class="ac-wrap w-full mt-1">
-                <input id="p-p1-L" type="text" placeholder="Nama Pemain 1" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'players','pac-p1-L'); debounceSetupUpdate()" onblur="acHide('pac-p1-L',300)">
-                <button type="button" onmousedown="acShowAll('p-p1-L','players','pac-p1-L')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-                <div id="pac-p1-L" class="ac-list hidden"></div>
-              </div>
+              <input type="hidden" id="p-p1-L" onchange="debounceSetupUpdate()">
             </div>
             <div>
               <label class="text-sm font-bold text-slate-700">PEMAIN 2 <span class="font-normal italic text-slate-500">(Kosong jika tunggal)</span></label>
-              <div class="ac-wrap w-full mt-1">
-                <input id="p-p2-L" type="text" placeholder="Nama Pemain 2" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'players','pac-p2-L'); autoDetectCategory(); debounceSetupUpdate()" onblur="acHide('pac-p2-L',300)">
-                <button type="button" onmousedown="acShowAll('p-p2-L','players','pac-p2-L')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-                <div id="pac-p2-L" class="ac-list hidden"></div>
-              </div>
+              <input type="hidden" id="p-p2-L" onchange="autoDetectCategory(); debounceSetupUpdate()">
             </div>
           </div>
         </div>
@@ -585,29 +555,17 @@
             </div>
             <div class="flex-1 min-w-0">
               <label class="text-xs font-bold text-slate-700 truncate block">NAMA KLUB / PB <span class="text-red-500">*</span></label>
-              <div class="ac-wrap w-full mt-1">
-                <input id="p-club-R" type="text" placeholder="PB Jaya Raya" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'clubs','pac-club-R'); debounceSetupUpdate()" onblur="acHide('pac-club-R',300)">
-                <button type="button" onmousedown="acShowAll('p-club-R','clubs','pac-club-R')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-                <div id="pac-club-R" class="ac-list hidden"></div>
-              </div>
+              <input type="hidden" id="p-club-R" onchange="debounceSetupUpdate()">
             </div>
           </div>
           <div class="space-y-4">
             <div>
               <label class="text-sm font-bold text-slate-700">PEMAIN 1 <span class="text-red-500">*</span></label>
-              <div class="ac-wrap w-full mt-1">
-                <input id="p-p1-R" type="text" placeholder="Nama Pemain 1" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'players','pac-p1-R'); debounceSetupUpdate()" onblur="acHide('pac-p1-R',300)">
-                <button type="button" onmousedown="acShowAll('p-p1-R','players','pac-p1-R')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-                <div id="pac-p1-R" class="ac-list hidden"></div>
-              </div>
+              <input type="hidden" id="p-p1-R" onchange="debounceSetupUpdate()">
             </div>
             <div>
               <label class="text-sm font-bold text-slate-700">PEMAIN 2 <span class="font-normal italic text-slate-500">(Kosong jika tunggal)</span></label>
-              <div class="ac-wrap w-full mt-1">
-                <input id="p-p2-R" type="text" placeholder="Nama Pemain 2" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'players','pac-p2-R'); autoDetectCategory(); debounceSetupUpdate()" onblur="acHide('pac-p2-R',300)">
-                <button type="button" onmousedown="acShowAll('p-p2-R','players','pac-p2-R')" class="ac-btn-all" tabindex="-1">&#9660;</button>
-                <div id="pac-p2-R" class="ac-list hidden"></div>
-              </div>
+              <input type="hidden" id="p-p2-R" onchange="autoDetectCategory(); debounceSetupUpdate()">
             </div>
           </div>
         </div>
@@ -810,7 +768,7 @@
 
         <div class="flex gap-3 bg-slate-100 border border-slate-300 rounded-xl p-3">
           <span class="hp-badge mt-0.5">3</span>
-          <div class="text-sm text-slate-700"><b>Setup Pertandingan.</b> Klik <b>⚙ Setup</b> (kanan atas). Isi turnamen, lapangan, nama pemain, klub, wasit, kategori. Klik <b>💾 SIMPAN &amp; TERAPKAN</b>.</div>
+          <div class="text-sm text-slate-700"><b>Setup Pertandingan.</b> Klik <b>⚙ Setup</b>. Isi detail. Pilih tim <b>servis pertama</b>. Untuk Ganda, <b>klik nama spesifik pemain</b> di bawah skor untuk menentukan siapa pemukul/penerima servis pertama. Klik <b>💾 SIMPAN &amp; TERAPKAN</b>.</div>
         </div>
 
         <div class="flex gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
@@ -860,7 +818,7 @@
 
         <div class="flex gap-3 bg-green-50 border border-green-200 rounded-xl p-3">
           <span class="hp-badge mt-0.5">7</span>
-          <div class="text-sm text-slate-700"><b>Export PDF.</b> Klik <b>📄 PDF</b> (kanan lapangan) kapan saja. Saat match selesai, PDF juga tersimpan otomatis ke folder <b>exports</b>.</div>
+          <div class="text-sm text-slate-700"><b>Export PDF.</b> Klik <b>📄 PDF</b> (kanan lapangan) kapan saja. PDF Ganda menggunakan format <b>4 baris</b>. Saat selesai, PDF juga tersimpan otomatis ke <b>exports</b>.</div>
         </div>
 
         <div class="flex gap-3 bg-red-50 border border-red-200 rounded-xl p-3">
@@ -917,7 +875,9 @@
   });
 
   // Fetch initial DB
-  fetch('/api/db').then(r => r.json()).then(d => { dbData = d; });
+  fetch('/api/db').then(r => r.json()).then(d => { 
+    dbData = d; 
+  });
 
   // Clear the red "required" highlight as soon as the operator edits the field
   document.addEventListener('input', e => {
@@ -953,15 +913,18 @@
       if($id('active-match-header')) $id('active-match-header').classList.add('hidden');
       if($id('scoreboard-table-container')) $id('scoreboard-table-container').classList.add('hidden');
       setMatchButtonsEnabled(false);
+      setSetupButtonsEnabled(false);
     } else if (!s.isMatchStarted) {
       $id('start-flow-area').classList.remove('hidden');
       $id('btn-must-setup').classList.add('hidden');
       if (s.serverSide) {
         $id('btn-main-play').classList.add('hidden');
         $id('select-serve-receive').classList.remove('hidden');
+        setSetupButtonsEnabled(true);
       } else {
         $id('btn-main-play').classList.remove('hidden');
         $id('select-serve-receive').classList.add('hidden');
+        setSetupButtonsEnabled(false);
       }
       if($id('active-match-header')) $id('active-match-header').classList.add('hidden');
       if($id('scoreboard-table-container')) $id('scoreboard-table-container').classList.add('hidden');
@@ -971,6 +934,7 @@
       if($id('active-match-header')) $id('active-match-header').classList.remove('hidden');
       if($id('scoreboard-table-container')) $id('scoreboard-table-container').classList.remove('hidden');
       setMatchButtonsEnabled(true);
+      setSetupButtonsEnabled(true);
       
       // Update active match header
       if($id('header-pb-name')) $id('header-pb-name').textContent = `${s.teams.L.club || 'Klub L'} vs ${s.teams.R.club || 'Klub R'}`;
@@ -1260,6 +1224,16 @@
     });
   }
 
+  function setSetupButtonsEnabled(enabled) {
+    ['btn-walkover', 'btn-cards'].forEach(id => {
+      const btn = $id(id);
+      if (!btn) return;
+      btn.disabled = !enabled;
+      if (!enabled) btn.classList.add('opacity-50', 'cursor-not-allowed');
+      else btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    });
+  }
+
   // Highlight PDF & Reset buttons once the match is over so the operator
   // clearly knows what to do next.
   function setEndActionsHighlight(on) {
@@ -1305,7 +1279,14 @@
   }
 
   async function triggerWalkover() {
-    if (!currentState) return;
+    if (!currentState || !currentState.serverSide) {
+      toast('⚠ Setup pertandingan dulu', 3000);
+      return;
+    }
+    if (currentState.isMatchOver) {
+      toast('⛔ Pertandingan sudah selesai', 3000);
+      return;
+    }
     $id('walkover-modal').classList.remove('hidden');
   }
 
@@ -1684,7 +1665,7 @@
     const date = new Date().toLocaleDateString('id-ID', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
     const win = window.open('', '_blank', 'width=800,height=1000');
     const steps = [
-      ['⚙', '1. Setup Pertandingan', 'Klik tombol <b>⚙ Setup</b> di kanan atas (③). Isi nama turnamen, lapangan, nama pemain, klub, wasit, dan kategori. Lalu klik <b>💾 SIMPAN &amp; TERAPKAN</b>.'],
+      ['⚙', '1. Setup Pertandingan', 'Klik <b>⚙ Setup</b> (③). Isi nama turnamen, lapangan, dll. Pilih tim servis pertama. Untuk Ganda, <b>klik nama spesifik pemain</b> di bawah skor untuk menentukan siapa pemukul/penerima servis. Lalu klik <b>SIMPAN</b>.'],
       ['▶', '2. Mulai Match', 'Pada lapangan tengah (⑤), pilih tim yang <b>servis pertama</b>, lalu klik <b>MULAI MATCH</b>. Timer mulai berjalan.'],
       ['👆', '3. Menambah Poin', 'Cukup <b>KETUK kotak SCORE</b> milik tim yang memenangkan reli (④). Biru = Tim Kiri, Oranye = Tim Kanan. Perpindahan servis otomatis.'],
       ['↩', '4. Koreksi / Undo', 'Salah ketuk? Tekan tombol bulat <b>↩ UNDO</b> di sisi kiri lapangan (⑦) untuk membatalkan poin terakhir. Bisa berkali-kali.'],
@@ -1694,7 +1675,7 @@
       ['🏸👁️', '8. Kok & Challenge', 'Di panel tim (④): <b>🏸 KOK −/+</b> menghitung total kok (kiri kurangi, kanan tambah). <b>👁️ CHAL</b> menampilkan sisa challenge; ketuk untuk memakainya.'],
       ['⏰', '9. Ubah Waktu', 'Waktu Mulai &amp; Selesai tampil di header (②). <b>Dobel-klik</b> waktu Mulai untuk mengoreksi. Waktu Selesai baru bisa diubah setelah match selesai.'],
       ['🚑', '10. Walkover', 'Jika satu tim mengundurkan diri, klik <b>🚑 WALKOVER</b> di header (⑥) lalu pilih tim yang <b>MENANG</b>.'],
-      ['📄', '11. Export PDF', 'Klik tombol <b>📄 PDF</b> di sisi kanan lapangan (⑦) kapan saja. Saat match selesai, PDF tersimpan otomatis ke folder <b>exports</b>.'],
+      ['📄', '11. Export PDF', 'Klik <b>📄 PDF</b> (⑦) kapan saja. Untuk Ganda, tabel PDF menggunakan format kronologis <b>4 baris</b>. Saat match selesai, PDF otomatis disimpan ke <b>exports</b>.'],
       ['🔄', '12. Reset Match', 'Klik tombol <b>🔄 RESET</b> di sisi kanan lapangan (⑦) untuk pertandingan baru. Semua skor &amp; riwayat dihapus (ada konfirmasi).'],
       ['⛶', '13. Layar Penuh', 'Klik tombol <b>⛶</b> di kanan atas (③) untuk mode layar penuh. Tekan <b>Esc</b> untuk keluar.'],
     ];
@@ -1850,7 +1831,10 @@
       $id('s-court').value      = s.court        || '';
       $id('s-matchno').value    = s.matchNo      || '';
       $id('s-umpire').value     = s.umpire       || '';
-      $id('s-sj').value         = s.serviceJudge || '';
+      $id('s-sj1').value        = s.serviceJudge1 || '';
+      $id('s-sj2').value        = s.serviceJudge2 || '';
+      $id('s-sj3').value        = s.serviceJudge3 || '';
+      $id('s-sj4').value        = s.serviceJudge4 || '';
       
       ['L','R'].forEach(sd => {
         $id(`p-flag-${sd}`).value = s.teams[sd].flag || '';
@@ -1870,6 +1854,8 @@
       updateCategoryOptions(s.category || '');
       $id('s-interval-11').value   = s.intervalPoint11  ?? 60;
       $id('s-interval-game').value = s.intervalNextGame ?? 120;
+      
+      Object.keys(selectMaps).forEach(updateSelectLabel);
     }
     $id('setup-modal').classList.remove('hidden');
     checkNewEntries();
@@ -1911,7 +1897,10 @@
       ['s-court','courts'],
       ['s-matchno','matchNumbers'],
       ['s-umpire','umpires'],
-      ['s-sj','umpires'],
+      ['s-sj1','serviceJudges'],
+      ['s-sj2','serviceJudges'],
+      ['s-sj3','serviceJudges'],
+      ['s-sj4','serviceJudges'],
       ['p-club-L','clubs'],
       ['p-club-R','clubs'],
       ['p-p1-L','players'],
@@ -1949,13 +1938,13 @@
 
   async function saveAllSetup() {
     const val = id => $id(id).value.trim();
+    const getTargetEl = id => $id('box-' + id) || $id(id);
     // Required fields (flag/emoji & player 2 are optional)
     const required = [
       ['s-tournament','Nama Turnamen'],
       ['s-court','Lapangan/Court'],
       ['s-matchno','Match No'],
       ['s-umpire','Wasit'],
-      ['s-sj','Service Judge'],
       ['p-club-L','Klub Tim L'],
       ['p-p1-L','Pemain 1 Tim L'],
       ['p-club-R','Klub Tim R'],
@@ -1964,15 +1953,15 @@
       ['s-interval-11','Durasi Interval Skor 11'],
       ['s-interval-game','Durasi Jeda Antar Game'],
     ];
-    required.forEach(([id]) => $id(id).classList.remove('field-error'));
+    required.forEach(([id]) => getTargetEl(id).classList.remove('field-error'));
     let missing = 0;
-    required.forEach(([id]) => { if (!val(id)) { $id(id).classList.add('field-error'); missing++; } });
+    required.forEach(([id]) => { if (!val(id)) { getTargetEl(id).classList.add('field-error'); missing++; } });
 
     // Interval durations must be positive whole numbers (seconds)
     ['s-interval-11','s-interval-game'].forEach(id => {
       const n = parseInt(val(id), 10);
-      if ((isNaN(n) || n < 1) && !$id(id).classList.contains('field-error')) {
-        $id(id).classList.add('field-error'); missing++;
+      if ((isNaN(n) || n < 1) && !getTargetEl(id).classList.contains('field-error')) {
+        getTargetEl(id).classList.add('field-error'); missing++;
       }
     });
 
@@ -1994,7 +1983,10 @@
       court:        val('s-court'),
       matchNo:      val('s-matchno'),
       umpire:       val('s-umpire'),
-      serviceJudge: val('s-sj'),
+      serviceJudge1: val('s-sj1'),
+      serviceJudge2: val('s-sj2'),
+      serviceJudge3: val('s-sj3'),
+      serviceJudge4: val('s-sj4'),
       intervalPoint11:  val('s-interval-11'),
       intervalNextGame: val('s-interval-game'),
     };
@@ -2064,6 +2056,21 @@
       $id(`p-${f}-L`).value = vR;
       $id(`p-${f}-R`).value = vL;
     });
+    
+    // Sync flag dropdowns
+    ['L', 'R'].forEach(sd => {
+      const dd = $id(`p-flag-dropdown-${sd}`);
+      const val = $id(`p-flag-${sd}`).value;
+      let found = false;
+      for (let i = 0; i < dd.options.length; i++) {
+        if (dd.options[i].value === val) {
+          dd.selectedIndex = i; found = true; break;
+        }
+      }
+      if (!found) dd.selectedIndex = 0;
+    });
+
+    Object.keys(selectMaps).forEach(updateSelectLabel);
     debouncePlayerUpdate();
   }
 
@@ -2304,7 +2311,10 @@
   }
 
   function openCardModal() {
-    if (!currentState) return;
+    if (!currentState || !currentState.serverSide) {
+      toast('⚠ Setup pertandingan dulu', 3000);
+      return;
+    }
     const s = currentState;
     const list = $id('card-player-list');
     const makeRow = (side, playerKey, name) => {
@@ -2327,8 +2337,14 @@
       return `<div class="flex items-center gap-2 rounded-xl p-2" style="${bg}">
         <span class="flex-1 font-bold text-slate-800 text-sm truncate min-w-0">${teamLbl}${escHtml(name)}</span>
         ${countBadges}
-        <button onclick="issueCard('${side}','${playerKey}','yellow')" class="flex-shrink-0 w-9 h-9 rounded-lg font-black text-yellow-900 flex items-center justify-center" style="background:#fbbf24" title="Tambah Kartu Kuning">🟨</button>
-        <button onclick="issueCard('${side}','${playerKey}','red')" class="flex-shrink-0 w-9 h-9 rounded-lg font-black text-white flex items-center justify-center" style="background:#ef4444" title="Tambah Kartu Merah">🟥</button>
+        <div class="flex items-center gap-1 bg-yellow-100 rounded-lg p-1 border border-yellow-300">
+          <button onclick="issueCard('${side}','${playerKey}','yellow', -1)" class="w-6 h-8 rounded text-yellow-800 font-bold hover:bg-yellow-200" title="Kurangi Kartu Kuning">-</button>
+          <button onclick="issueCard('${side}','${playerKey}','yellow', 1)" class="w-8 h-8 rounded bg-yellow-400 font-black text-yellow-900 shadow-sm" title="Tambah Kartu Kuning">🟨</button>
+        </div>
+        <div class="flex items-center gap-1 bg-red-100 rounded-lg p-1 border border-red-300">
+          <button onclick="issueCard('${side}','${playerKey}','red', -1)" class="w-6 h-8 rounded text-red-800 font-bold hover:bg-red-200" title="Kurangi Kartu Merah">-</button>
+          <button onclick="issueCard('${side}','${playerKey}','red', 1)" class="w-8 h-8 rounded bg-red-500 font-black text-white shadow-sm" title="Tambah Kartu Merah">🟥</button>
+        </div>
       </div>`;
     };
     list.innerHTML =
@@ -2343,31 +2359,35 @@
     $id('card-modal').classList.add('hidden');
   }
 
-  async function issueCard(side, playerKey, cardType) {
-    closeCardModal();
+  async function issueCard(side, playerKey, cardType, delta = 1) {
     const labels = { yellow: 'Kartu Kuning 🟨', red: 'Kartu Merah 🟥' };
+    const action = delta > 0 ? 'diberikan' : 'dikurangi';
     // Use raw fetch (NOT api() helper) to avoid login-redirect on 404
     try {
       const r = await fetch('/api/card', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ side, player: playerKey, cardType })
+        body: JSON.stringify({ side, player: playerKey, cardType, delta })
       });
       const ct = r.headers.get('content-type') || '';
       if (ct.includes('application/json')) {
         const data = await r.json();
         if (data.ok) {
           // Server will broadcast state_update — marks appear via socket
-          toast(`${labels[cardType]} diberikan`, 2000);
+          toast(`${labels[cardType]} ${action}`, 2000);
+          // Refresh the modal right away to show changes
+          openCardModal();
           return;
         }
       }
     } catch (e) { /* network error — fall through to local */ }
     // Fallback: store locally and re-render immediately
-    localCards[side][playerKey][cardType]++;
+    localCards[side][playerKey][cardType] += delta;
+    if (localCards[side][playerKey][cardType] < 0) localCards[side][playerKey][cardType] = 0;
     saveLocalCards();
     if (currentState) renderController(currentState);
-    toast(`${labels[cardType]} diberikan (lokal)`, 2000);
+    openCardModal();
+    toast(`${labels[cardType]} ${action} (lokal)`, 2000);
   }
 
   // Open setup on first load if no tournament set
@@ -2376,6 +2396,164 @@
       if (currentState && !currentState.tournament) openSetup();
     }, 500);
   });
+
+  // ───────────────────────────────────────────
+  //  Custom Searchable Dropdown Logic
+  // ───────────────────────────────────────────
+  const selectMaps = {
+    's-tournament': 'tournaments',
+    's-court': 'courts',
+    's-matchno': 'matchNumbers',
+    's-umpire': 'umpires',
+    's-sj1': 'serviceJudges',
+    's-sj2': 'serviceJudges',
+    's-sj3': 'serviceJudges',
+    's-sj4': 'serviceJudges',
+    'p-club-L': 'clubs',
+    'p-club-R': 'clubs',
+    'p-p1-L': 'players',
+    'p-p2-L': 'players',
+    'p-p1-R': 'players',
+    'p-p2-R': 'players'
+  };
+
+  function updateSelectLabel(id) {
+    const hidden = $id(id);
+    const lbl = $id('lbl-' + id);
+    if(hidden && lbl) lbl.textContent = hidden.value || '-- Pilih --';
+    if(hidden && hidden.value) {
+      const box = $id('box-' + id);
+      if (box) box.classList.remove('field-error');
+    }
+  }
+
+  function closeAllCustomDropdowns() {
+    Object.keys(selectMaps).forEach(id => {
+      const dd = $id('dd-' + id);
+      if(dd) dd.classList.add('hidden');
+    });
+  }
+
+  function openCustomDropdown(id) {
+    const dd = $id('dd-' + id);
+    if(!dd) return;
+    
+    // Build options based on dbData
+    const dbKey = selectMaps[id];
+    let list = dbData[dbKey] || [];
+    
+    // EXCLUSION LOGIC FOR PLAYERS AND SJS
+    if (dbKey === 'players') {
+       const selected = ['p-p1-L', 'p-p2-L', 'p-p1-R', 'p-p2-R']
+           .map(pid => $id(pid).value)
+           .filter(Boolean);
+       const myVal = $id(id).value;
+       list = list.filter(p => p === myVal || !selected.includes(p));
+    }
+    if (dbKey === 'serviceJudges') {
+       const selected = ['s-sj1', 's-sj2', 's-sj3', 's-sj4']
+           .map(pid => $id(pid).value)
+           .filter(Boolean);
+       const myVal = $id(id).value;
+       list = list.filter(p => p === myVal || !selected.includes(p));
+    }
+    
+    dd.dataset.options = JSON.stringify(list);
+    dd.classList.remove('hidden');
+    
+    // Render list
+    filterCustomDropdown(id, '');
+  }
+
+  function filterCustomDropdown(id, query) {
+    const dd = $id('dd-' + id);
+    const listEl = $id('list-' + id);
+    if(!dd || !listEl) return;
+    
+    const q = query.toLowerCase();
+    const list = JSON.parse(dd.dataset.options || '[]');
+    const filtered = list.filter(v => v.toLowerCase().includes(q));
+    
+    listEl.innerHTML = '';
+    
+    // Add empty option if search matches empty or if requested
+    if (q === '') {
+      const opt = document.createElement('div');
+      opt.className = 'p-2 hover:bg-blue-100 cursor-pointer rounded text-slate-500 italic text-sm';
+      opt.textContent = '-- Pilih -- (Kosongkan)';
+      opt.onclick = (e) => {
+        e.stopPropagation();
+        $id(id).value = '';
+        updateSelectLabel(id);
+        $id(id).dispatchEvent(new Event('change'));
+        closeAllCustomDropdowns();
+      };
+      listEl.appendChild(opt);
+    }
+    
+    filtered.forEach(v => {
+      const opt = document.createElement('div');
+      opt.className = 'p-2 hover:bg-blue-100 cursor-pointer rounded text-slate-800 font-bold border-b border-slate-100 text-sm truncate';
+      if ($id(id).value === v) opt.classList.add('bg-blue-200');
+      opt.textContent = v;
+      opt.onclick = (e) => {
+        e.stopPropagation();
+        $id(id).value = v;
+        updateSelectLabel(id);
+        $id(id).dispatchEvent(new Event('change'));
+        closeAllCustomDropdowns();
+      };
+      listEl.appendChild(opt);
+    });
+    
+    if(filtered.length === 0) {
+      listEl.innerHTML += '<div class="p-2 text-slate-400 text-sm text-center">Tidak ditemukan</div>';
+    }
+  }
+
+  function initCustomSelects() {
+    Object.keys(selectMaps).forEach(id => {
+      const hidden = $id(id);
+      if (!hidden) return;
+      
+      // create fake display box
+      const box = document.createElement('div');
+      box.id = 'box-' + id;
+      box.className = 'w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold cursor-pointer text-left flex justify-between items-center';
+      box.innerHTML = `<span id="lbl-${id}" class="truncate">-- Pilih --</span> <span class="text-xs text-slate-400 ml-1">&#9660;</span>`;
+      
+      // create dropdown container
+      const dd = document.createElement('div');
+      dd.id = 'dd-' + id;
+      dd.className = 'hidden absolute z-50 left-0 top-full mt-1 w-full bg-white border border-slate-300 rounded-xl shadow-2xl flex flex-col overflow-hidden';
+      dd.style.maxHeight = '250px';
+      dd.innerHTML = `
+        <div id="list-${id}" class="flex-1 overflow-y-auto p-1 bg-white"></div>
+      `;
+      
+      const wrapper = document.createElement('div');
+      wrapper.className = 'relative w-full mt-1';
+      
+      hidden.parentNode.insertBefore(wrapper, hidden);
+      wrapper.appendChild(hidden);
+      wrapper.appendChild(box);
+      wrapper.appendChild(dd);
+      
+      // Events
+      box.onclick = (e) => {
+        e.stopPropagation();
+        const isHidden = dd.classList.contains('hidden');
+        closeAllCustomDropdowns();
+        if(isHidden) openCustomDropdown(id);
+      };
+      dd.onclick = (e) => e.stopPropagation();
+    });
+    
+    document.addEventListener('click', closeAllCustomDropdowns);
+  }
+
+  // Initialize custom selects on load
+  document.addEventListener('DOMContentLoaded', initCustomSelects);
 </script>
 </body>
 </html>

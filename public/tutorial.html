@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="/favicon-tutorial.svg" type="image/svg+xml">
+  <link rel="icon" href="/icons/favicon-tutorial.svg" type="image/svg+xml">
   <title>Tutorial — Badminton Scoreboard System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -150,19 +150,18 @@
       </div>
     </div>
 
-    <!-- Bagian 2: Login Controller -->
+    <!-- Bagian 2: Login Controller & Admin -->
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 print-page print-border">
       <h3 class="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-        <span class="text-2xl">🔐</span> Bagian 2: Login Panel Kontrol
+        <span class="text-2xl">🔐</span> Bagian 2: Admin &amp; Multi Court
       </h3>
       <div class="space-y-3 text-sm text-gray-700">
-        <p>Halaman <strong>/controller</strong> dilindungi PIN. PIN default adalah <strong class="text-xl text-yellow-600">1234</strong>.</p>
+        <p>Buka halaman <strong>/admin</strong> untuk mengatur turnamen dan konfigurasi lapangan (Multi Court). PIN default adalah <strong class="text-xl text-yellow-600">1234</strong>.</p>
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <strong>⚠ Keamanan:</strong> Untuk keamanan optimal, ubah PIN sebelum digunakan di turnamen resmi.
-          Jalankan server dengan perintah:<br>
-          <code class="block bg-white rounded px-2 py-1 mt-1 font-mono">CONTROLLER_PIN=7890 node server.js</code>
+          <strong>💡 Multi Court:</strong> Anda dapat menjalankan hingga 6 lapangan sekaligus dari Panel Admin.
+          Tentukan PIN dan PORT yang berbeda untuk setiap lapangan, lalu klik <strong>▶ Jalankan Court Aktif</strong>.
         </div>
-        <p>Setelah login, sesi akan bertahan selama 12 jam. Klik tombol "Keluar" untuk mengakhiri sesi.</p>
+        <p>Halaman <strong>/controller</strong> untuk setiap lapangan dilindungi oleh PIN masing-masing yang telah Anda atur di Panel Admin.</p>
       </div>
     </div>
 
@@ -187,7 +186,11 @@
         </div>
         <div class="flex gap-3">
           <span class="step-num">3</span>
-          <div>Pilih tim mana yang <strong>Servis Pertama</strong>, lalu klik <strong>✓ Simpan &amp; Terapkan</strong>.</div>
+          <div>
+            Pilih tim mana yang <strong>Servis Pertama</strong>.
+            <br><span class="text-gray-500 font-bold">Penting untuk Ganda (Doubles):</span> Anda bisa mengklik nama pemain yang spesifik di bawah tabel skor untuk menjadikannya server atau receiver pada saat servis pertama.
+            <br>Lalu klik <strong>✓ Simpan &amp; Terapkan</strong>.
+          </div>
         </div>
       </div>
     </div>
@@ -249,9 +252,8 @@
           <ul class="list-disc pl-4 mt-2 space-y-1">
             <li>Header: Nama Turnamen, Event, Match No, Court, Date/Time, Wasit</li>
             <li>Tabel ringkasan skor (Game 1, 2, 3 + pemenang)</li>
-            <li>Grid skor per game dengan notasi kronologis BWF</li>
+            <li>Grid skor per game dengan notasi kronologis BWF. Untuk partai <strong>Ganda (Doubles)</strong>, tabel skor akan menggunakan format <strong>4 baris</strong> (satu baris untuk setiap pemain) dan poin diletakkan bergantian sesuai siapa yang servis atau menerima poin.</li>
             <li>Lingkaran merah pada poin Interval (11) dan poin kemenangan</li>
-            <li>Indikator Service Over (tanda diagonal)</li>
             <li>Footer: Waktu mulai/selesai, durasi, kolom tanda tangan</li>
           </ul>
         </div>

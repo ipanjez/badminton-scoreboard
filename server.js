@@ -18,6 +18,50 @@ const BASE_DIR = IS_PKG ? path.dirname(process.execPath) : __dirname;
 // Load .env from BASE_DIR so it works both in dev and next to the .exe
 require('dotenv').config({ path: path.join(BASE_DIR, '.env'), quiet: true });
 
+// ── Global Logging ──
+const logsDir = path.join(BASE_DIR, 'logs');
+if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+const currentPort = parseInt(process.env.PORT || 1000, 10);
+const courtName = currentPort === 1000 ? 'Server_Utama' : `Court_${currentPort - 3000}`;
+const logFile = path.join(logsDir, `${courtName}_Port_${currentPort}.log`);
+const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+const originalLog = console.log;
+const originalError = console.error;
+
+console.log = function(...args) {
+  const msg = require('util').format(...args) + '\n';
+  logStream.write(`[${new Date().toISOString()}] LOG: ${msg}`);
+  originalLog.apply(console, args);
+};
+console.error = function(...args) {
+  const msg = require('util').format(...args) + '\n';
+  logStream.write(`[${new Date().toISOString()}] ERR: ${msg}`);
+  originalError.apply(console, args);
+};
+
+process.on('uncaughtException', (err) => {
+  const msg = err && err.stack ? err.stack : String(err);
+  logStream.write(`[${new Date().toISOString()}] FATAL CRASH (uncaughtException): ${msg}\n`);
+  originalError.call(console, err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason, p) => {
+  const msg = reason && reason.stack ? reason.stack : String(reason);
+  logStream.write(`[${new Date().toISOString()}] FATAL CRASH (unhandledRejection): ${msg}\n`);
+  originalError.call(console, reason);
+});
+process.on('exit', (code) => {
+  logStream.write(`[${new Date().toISOString()}] Server berhenti (Exit Code: ${code})\n`);
+});
+process.on('SIGINT', () => {
+  logStream.write(`[${new Date().toISOString()}] Server dihentikan manual (Ctrl+C / SIGINT)\n`);
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  logStream.write(`[${new Date().toISOString()}] Server dihentikan oleh sistem (SIGTERM)\n`);
+  process.exit(0);
+});
+
 const express    = require('express');
 const http       = require('http');
 const { Server } = require('socket.io');
@@ -27,8 +71,8 @@ const XLSX       = require('xlsx');
 // ─────────────────────────────────────────────
 //  Config
 // ─────────────────────────────────────────────
-const PORT           = parseInt(process.env.PORT, 10) || 3000;
-const CONTROLLER_PIN = process.env.CONTROLLER_PIN || '1234';
+const PORT           = parseInt(process.env.PORT, 10) || 1000;
+const CONTROLLER_PIN = process.env.CONTROLLER_PIN || '1111';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'bwf-badminton-scoreboard-secret-2025';
 const CATEGORIES     = ['MS', 'WS', 'MD', 'WD', 'XD'];
 
@@ -62,6 +106,9 @@ if (fs.existsSync(jspdfDist)) {
 // ─────────────────────────────────────────────
 function requireAuth(req, res, next) {
   if (req.session && req.session.auth === true) return next();
+  if (req.originalUrl.startsWith('/api/')) {
+    return res.status(401).json({ ok: false, msg: 'Sesi berakhir karena server direstart. Silakan muat ulang halaman (F5) untuk login.' });
+  }
   const red = encodeURIComponent(req.originalUrl);
   res.redirect(`/login?redirect=${red}`);
 }
@@ -71,7 +118,7 @@ function requireAuth(req, res, next) {
 // ─────────────────────────────────────────────
 const DB_XLSX = path.join(BASE_DIR, 'database.xlsx');
 const DB_JSON = path.join(BASE_DIR, 'database.json'); // legacy fallback
-let db = { players: [], clubs: [], umpires: [], tournaments: [], courts: [], matchNumbers: [] };
+let db = { players: [], clubs: [], umpires: [], serviceJudges: [], tournaments: [], courts: [], matchNumbers: [] };
 
 function sheetToList(wb, name) {
   const ws = wb.Sheets[name];
@@ -84,12 +131,13 @@ function loadDB() {
   try {
     if (fs.existsSync(DB_XLSX)) {
       const wb   = XLSX.readFile(DB_XLSX);
-      db.players     = sheetToList(wb, 'Pemain');
-      db.clubs       = sheetToList(wb, 'Klub');
-      db.umpires     = sheetToList(wb, 'Wasit');
-      db.tournaments = sheetToList(wb, 'Turnamen');
-      db.courts      = sheetToList(wb, 'Lapangan');
-      db.matchNumbers= sheetToList(wb, 'NoPartai');
+      db.players       = sheetToList(wb, 'Pemain');
+      db.clubs         = sheetToList(wb, 'Klub');
+      db.umpires       = sheetToList(wb, 'Wasit');
+      db.serviceJudges = sheetToList(wb, 'ServiceJudge');
+      db.tournaments   = sheetToList(wb, 'Turnamen');
+      db.courts        = sheetToList(wb, 'Lapangan');
+      db.matchNumbers  = sheetToList(wb, 'NoPartai');
       return;
     }
     // Migrate from legacy JSON
@@ -107,14 +155,15 @@ function loadDB() {
 function saveDB() {
   try {
     const mkSheet = (list, hdr) =>
-      XLSX.utils.aoa_to_sheet([[hdr], ...list.sort((a,b)=>a.localeCompare(b,'id')).map(v => [v])]);
+      XLSX.utils.aoa_to_sheet([[hdr], ...list.map(v => [v])]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.players,      'Nama Pemain'),      'Pemain');
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.clubs,        'Nama Klub / PB'),   'Klub');
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.umpires,      'Nama Wasit'),       'Wasit');
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.tournaments,  'Nama Turnamen'),    'Turnamen');
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.courts,       'Nama Lapangan'),    'Lapangan');
-    XLSX.utils.book_append_sheet(wb, mkSheet(db.matchNumbers, 'No. Partai'),       'NoPartai');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.players,       'Nama Pemain'),      'Pemain');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.clubs,         'Nama Klub / PB'),   'Klub');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.umpires,       'Nama Wasit'),       'Wasit');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.serviceJudges, 'Nama Service Judge'),'ServiceJudge');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.tournaments,   'Nama Turnamen'),    'Turnamen');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.courts,        'Nama Lapangan'),    'Lapangan');
+    XLSX.utils.book_append_sheet(wb, mkSheet(db.matchNumbers,  'No. Partai'),       'NoPartai');
     XLSX.writeFile(wb, DB_XLSX);
   } catch (e) { console.error('[DB] Save error:', e.message); }
 }
@@ -158,7 +207,10 @@ function createState() {
     court:        '',
     matchNo:      '',
     umpire:       '',
-    serviceJudge: '',
+    serviceJudge1: '',
+    serviceJudge2: '',
+    serviceJudge3: '',
+    serviceJudge4: '',
     startTime:    null,
     endTime:      null,
     teams: {
@@ -201,7 +253,16 @@ function createState() {
   };
 }
 
+const STATE_FILE = path.join(BASE_DIR, `state_port_${currentPort}.json`);
 let state = createState();
+if (fs.existsSync(STATE_FILE)) {
+  try {
+    const saved = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    state = { ...state, ...saved };
+  } catch (e) {
+    console.error('Failed to load saved state:', e.message);
+  }
+}
 
 // ─────────────────────────────────────────────
 //  BWF Rule Helpers
@@ -359,7 +420,12 @@ function undoLast() {
   return { ok: true };
 }
 
-function broadcast() { io.emit('state_update', state); }
+function broadcast() {
+  io.emit('state_update', state);
+  fs.writeFile(STATE_FILE, JSON.stringify(state), (err) => {
+    if (err) console.error('Failed to save state:', err.message);
+  });
+}
 
 // ─────────────────────────────────────────────
 //  Routes: Pages
@@ -397,7 +463,7 @@ app.get('/tutorial',   requireAuth, (_, res) => res.sendFile(PUB('tutorial.html'
 
 // Protected pages
 app.get('/controller', requireAuth, (_, res) => res.sendFile(PUB('controller.html')));
-app.get('/manage',     requireAuth, (_, res) => res.sendFile(PUB('manage.html')));
+app.get('/admin',      requireAuth, (_, res) => res.sendFile(PUB('admin.html')));
 
 // ─────────────────────────────────────────────
 //  Helpers
@@ -463,7 +529,7 @@ function killPort(port) {
 app.get('/api/state', (_, res) => res.json(state));
 app.get('/api/db',    (_, res) => res.json(db));
 
-// Public server info (port + LAN IPs) — used by manage panel to build URLs
+// Public server info (port + LAN IPs) — used by admin panel to build URLs
 app.get('/api/info', (_, res) => {
   const localIPs = Object.values(os.networkInterfaces())
     .flat()
@@ -496,10 +562,10 @@ app.get('/api/launcher-status', async (_, res) => {
   res.json({ port: PORT, localIPs, courts });
 });
 
-// Add item to DB (from manage page)
+// Add item to DB (from admin page)
 app.post('/api/db/add', requireAuth, (req, res) => {
   const { type, value } = req.body;
-  if (!['players','clubs','umpires','tournaments','courts','matchNumbers'].includes(type))
+  if (!['players','clubs','umpires','serviceJudges','tournaments','courts','matchNumbers'].includes(type))
     return res.status(400).json({ ok: false });
   dbAdd(type, String(value || '').trim());
   res.json({ ok: true, db });
@@ -508,9 +574,22 @@ app.post('/api/db/add', requireAuth, (req, res) => {
 // Remove item from DB
 app.post('/api/db/remove', requireAuth, (req, res) => {
   const { type, value } = req.body;
-  if (!['players','clubs','umpires','tournaments','courts','matchNumbers'].includes(type))
+  if (!['players','clubs','umpires','serviceJudges','tournaments','courts','matchNumbers'].includes(type))
     return res.status(400).json({ ok: false });
   dbRemove(type, String(value || '').trim());
+  res.json({ ok: true, db });
+});
+
+// Reorder items in DB
+app.post('/api/db/reorder', requireAuth, (req, res) => {
+  const { type, list } = req.body;
+  if (!['players','clubs','umpires','serviceJudges','tournaments','courts','matchNumbers'].includes(type) || !Array.isArray(list))
+    return res.status(400).json({ ok: false });
+  
+  // ensure strings, trimmed
+  db[type] = list.map(v => String(v || '').trim()).filter(Boolean);
+  saveDB();
+  io.emit('db_updated', db);
   res.json({ ok: true, db });
 });
 
@@ -519,7 +598,14 @@ app.post('/api/config/pin', requireAuth, (req, res) => {
   const { pin } = req.body;
   if (!pin || pin.length < 4 || pin.length > 20)
     return res.status(400).json({ ok: false, msg: 'PIN harus 4–20 karakter' });
-  const envFile = path.join(BASE_DIR, '.env');
+  const argvPath = process.argv.find(arg => arg.startsWith('dotenv_config_path='));
+  let currentEnv = '.env';
+  if (argvPath) {
+    currentEnv = argvPath.split('=')[1];
+  } else if (process.env.PORT && parseInt(process.env.PORT) >= 3001) {
+    currentEnv = `.env.court${parseInt(process.env.PORT) - 3000}`;
+  }
+  const envFile = path.join(BASE_DIR, currentEnv);
   try {
     let c = fs.existsSync(envFile) ? fs.readFileSync(envFile, 'utf8') : '';
     c = c.includes('CONTROLLER_PIN=')
@@ -558,8 +644,10 @@ app.post('/api/setup', requireAuth, (req, res) => {
   state.court        = String(b.court        || '').trim().slice(0, 20);
   state.matchNo      = String(b.matchNo      || '').trim().slice(0, 20);
   state.umpire       = String(b.umpire       || '').trim().slice(0, 100);
-  state.serviceJudge = String(b.serviceJudge || '').trim().slice(0, 100);
-
+  state.serviceJudge1 = String(b.serviceJudge1 || '').trim().slice(0, 100);
+  state.serviceJudge2 = String(b.serviceJudge2 || '').trim().slice(0, 100);
+  state.serviceJudge3 = String(b.serviceJudge3 || '').trim().slice(0, 100);
+  state.serviceJudge4 = String(b.serviceJudge4 || '').trim().slice(0, 100);
   // Interval durations (seconds) — required, numeric, clamped 1..3600
   const p11 = parseInt(b.intervalPoint11, 10);
   const nxt = parseInt(b.intervalNextGame, 10);
@@ -622,7 +710,7 @@ app.post('/api/courts/save', requireAuth, (req, res) => {
   courts.forEach(c => {
     if (!c.active) return;
     const num  = parseInt(c.num, 10);
-    const pin  = String(c.pin  || '1234').trim();
+    const pin  = String(c.pin  || '1111').trim();
     const port = parseInt(c.port || 3000 + num, 10);
     if (num < 1 || num > 6) return;
     const content = `# Lapangan ${num}\nCONTROLLER_PIN=${pin}\nPORT=${port}\nSESSION_SECRET=court${num}-${Date.now()}\n`;
@@ -652,7 +740,7 @@ app.post('/api/courts/start', requireAuth, async (req, res) => {
 
     const raw    = fs.readFileSync(envFile, 'utf8');
     const port   = parseInt((raw.match(/PORT=(.+)/)           || [])[1]?.trim() || (3000 + n), 10);
-    const pin    = (raw.match(/CONTROLLER_PIN=(.+)/)          || [])[1]?.trim() || '1234';
+    const pin    = (raw.match(/CONTROLLER_PIN=(.+)/)          || [])[1]?.trim() || '1111';
     const secret = (raw.match(/SESSION_SECRET=(.+)/)          || [])[1]?.trim() || `court${n}-${Date.now()}`;
 
     // Already running (this server or a previously started court) → skip
@@ -660,23 +748,27 @@ app.post('/api/courts/start', requireAuth, async (req, res) => {
 
     try {
       let child;
-      if (IS_PKG) {
-        // Running as packaged .exe — launch another copy with env overrides
-        child = spawn(process.execPath, [], {
-          cwd: BASE_DIR,
-          env: { ...process.env, PORT: String(port), CONTROLLER_PIN: pin, SESSION_SECRET: secret },
-          detached: true,
-          stdio: 'ignore'
-        });
-      } else {
-        // Dev mode — node -r dotenv/config server.js dotenv_config_path=.env.courtN
-        child = spawn(process.execPath,
-          ['-r', 'dotenv/config', __filename, `dotenv_config_path=.env.court${n}`], {
-          cwd: BASE_DIR,
-          env: process.env,
-          detached: true,
-          stdio: 'ignore'
-        });
+          const logsDir = path.join(BASE_DIR, 'logs');
+          if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+          const logStream = fs.openSync(path.join(logsDir, `Court_${n}_Port_${port}_Stdout.log`), 'a');
+          
+          if (IS_PKG) {
+            // Running as packaged .exe — launch another copy with env overrides
+            child = spawn(process.execPath, [], {
+              cwd: BASE_DIR,
+              env: { ...process.env, PORT: String(port), CONTROLLER_PIN: pin, SESSION_SECRET: secret },
+              detached: true,
+              stdio: ['ignore', logStream, logStream]
+            });
+          } else {
+            // Dev mode — pass env overrides directly so they take precedence
+            child = spawn(process.execPath,
+              [__filename], {
+              cwd: BASE_DIR,
+              env: { ...process.env, PORT: String(port), CONTROLLER_PIN: pin, SESSION_SECRET: secret },
+              detached: true,
+              stdio: ['ignore', logStream, logStream]
+            });
       }
       child.unref();
       started.push(n);
@@ -833,12 +925,13 @@ app.post('/api/walkover', requireAuth, (req, res) => {
 
 // Issue a card (yellow/red) to a player
 app.post('/api/card', requireAuth, (req, res) => {
-  const { side, player, cardType } = req.body;
+  const { side, player, cardType, delta = 1 } = req.body;
   if (!['L', 'R'].includes(side)) return res.status(400).json({ ok: false, msg: 'Invalid side' });
   if (!['p1', 'p2'].includes(player)) return res.status(400).json({ ok: false, msg: 'Invalid player' });
   if (!['yellow', 'red'].includes(cardType)) return res.status(400).json({ ok: false, msg: 'Invalid card type' });
   if (!state.cards) state.cards = { L: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } }, R: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } } };
-  state.cards[side][player][cardType]++;
+  state.cards[side][player][cardType] += delta;
+  if (state.cards[side][player][cardType] < 0) state.cards[side][player][cardType] = 0;
   broadcast();
   res.json({ ok: true });
 });
@@ -928,7 +1021,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('  • /display     → Layar TV / Proyektor  (publik)');
   console.log('  • /viewer      → HP Penonton           (publik)');
   console.log(`  • /controller  → Wasit / Operator      (PIN: ${CONTROLLER_PIN})`);
-  console.log(`  • /manage      → Panel Admin            (PIN: ${CONTROLLER_PIN})`);
+  console.log(`  • /admin       → Panel Admin            (PIN: ${CONTROLLER_PIN})`);
   console.log('  • /tutorial    → Panduan Penggunaan    (PIN diperlukan)');
   console.log(`\n  database.xlsx auto-reload saat disimpan di Excel.\n`);
 });
