@@ -251,6 +251,8 @@
     ctrl.innerHTML = `
       <button onclick="sortList('${type}', 1)" title="Urutkan A-Z" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white font-bold transition">A-Z</button>
       <button onclick="sortList('${type}', -1)" title="Urutkan Z-A" class="text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-white font-bold transition">Z-A</button>
+      <button onclick="formatList('${type}', 'upper')" title="Kapital Semua" class="text-[10px] bg-indigo-700 hover:bg-indigo-600 px-2 py-1 rounded text-white font-bold transition ml-1">AA</button>
+      <button onclick="formatList('${type}', 'title')" title="Kapital Awal Kata" class="text-[10px] bg-indigo-700 hover:bg-indigo-600 px-2 py-1 rounded text-white font-bold transition">Aa</button>
     `;
     badge.parentNode.insertBefore(ctrl, badge);
   }
@@ -258,6 +260,17 @@
   function sortList(type, dir) {
     if (!dbData[type]) return;
     dbData[type].sort((a,b) => dir * a.localeCompare(b, 'id'));
+    renderChips(type);
+    api('/api/db/reorder', { type, list: dbData[type] });
+  }
+
+  function formatList(type, style) {
+    if (!dbData[type]) return;
+    if (style === 'upper') {
+      dbData[type] = dbData[type].map(s => s.toUpperCase());
+    } else if (style === 'title') {
+      dbData[type] = dbData[type].map(s => s.replace(/\w\S*/g, t => t.charAt(0).toUpperCase() + t.substring(1).toLowerCase()));
+    }
     renderChips(type);
     api('/api/db/reorder', { type, list: dbData[type] });
   }
