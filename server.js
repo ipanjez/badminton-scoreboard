@@ -4,6 +4,7 @@
 const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
+const net  = require('net');
 const { autoExportPDF } = require('./pdf-server');
 
 // ── pkg standalone detection ──
@@ -173,7 +174,11 @@ function createState() {
     activeGame:   1,
     serverSide:   'L',
     isInterval:   false,
+    intervalType: null, // 'point11' | 'nextgame'
     intervalDone: { game1: false, game2: false, game3: false },
+    // Interval durations in SECONDS (configurable in setup)
+    intervalPoint11:  60,  // break when a team first reaches 11
+    intervalNextGame: 120, // break between games (on Lanjut Game)
     isMatchOver:  false,
     winner:       null,
     isWalkover:   false,
@@ -188,6 +193,10 @@ function createState() {
     // { id, game, time, scorer, scoreL, scoreR,
     //   prevL, prevR, prevServer,
     //   isServiceOver, isInterval, isGameWin, isMatchWin }
+    cards: {
+      L: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } },
+      R: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } }
+    },
     history:      []
   };
 }
@@ -254,6 +263,7 @@ function addPoint(side) {
   let isIntervalNow = false;
   if (!state.intervalDone[key] && (sc.L === 11 || sc.R === 11)) {
     state.isInterval    = true;
+    state.intervalType  = 'point11';
     state.intervalDone[key] = true;
     isIntervalNow       = true;
   }
@@ -338,6 +348,7 @@ function undoLast() {
   if (last.isInterval) {
     state.intervalDone[key] = false;
     state.isInterval        = false;
+    state.intervalType      = null;
   }
 
   // Restore game/match wins
@@ -389,6 +400,64 @@ app.get('/controller', requireAuth, (_, res) => res.sendFile(PUB('controller.htm
 app.get('/manage',     requireAuth, (_, res) => res.sendFile(PUB('manage.html')));
 
 // ─────────────────────────────────────────────
+//  Helpers
+// ─────────────────────────────────────────────
+// Check whether a TCP port is currently accepting connections on localhost
+// (used to detect if a court's server process is actually running).
+function isPortOpen(port, host = '127.0.0.1', timeout = 400) {
+  return new Promise(resolve => {
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+    socket.setTimeout(timeout);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error',   () => finish(false));
+    socket.connect(port, host);
+  });
+}
+
+// Kill whatever process is LISTENING on a given TCP port (used to stop a court).
+function killPort(port) {
+  const { exec } = require('child_process');
+  return new Promise(resolve => {
+    if (process.platform === 'win32') {
+      exec(`netstat -ano | findstr :${port}`, (err, stdout) => {
+        if (err || !stdout) return resolve(false);
+        const pids = new Set();
+        stdout.split('\n').forEach(line => {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length < 5) return;
+          const local = parts[1], state = parts[3], pid = parts[4];
+          if (state === 'LISTENING' && local.endsWith(':' + port) && /^\d+$/.test(pid) && pid !== '0') {
+            pids.add(pid);
+          }
+        });
+        if (!pids.size) return resolve(false);
+        let remaining = pids.size, any = false;
+        pids.forEach(pid => {
+          exec(`taskkill /PID ${pid} /F /T`, (e) => {
+            if (!e) any = true;
+            if (--remaining === 0) resolve(any);
+          });
+        });
+      });
+    } else {
+      exec(`lsof -ti tcp:${port}`, (err, stdout) => {
+        const pids = (stdout || '').split('\n').map(s => s.trim()).filter(Boolean);
+        if (err || !pids.length) return resolve(false);
+        exec(`kill -9 ${pids.join(' ')}`, (e) => resolve(!e));
+      });
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
 //  Routes: REST API
 // ─────────────────────────────────────────────
 app.get('/api/state', (_, res) => res.json(state));
@@ -404,7 +473,7 @@ app.get('/api/info', (_, res) => {
 });
 
 // Launcher status — public, combines info + court ports (no PINs exposed)
-app.get('/api/launcher-status', (_, res) => {
+app.get('/api/launcher-status', async (_, res) => {
   const localIPs = Object.values(os.networkInterfaces())
     .flat()
     .filter(i => i && i.family === 'IPv4' && !i.internal)
@@ -420,6 +489,10 @@ app.get('/api/launcher-status', (_, res) => {
       courts.push({ num: i, port: 3000 + i, active: false });
     }
   }
+  // Probe which configured court servers are ACTUALLY running
+  await Promise.all(courts.map(async c => {
+    c.running = (c.port === PORT) ? true : (c.active ? await isPortOpen(c.port) : false);
+  }));
   res.json({ port: PORT, localIPs, courts });
 });
 
@@ -487,6 +560,12 @@ app.post('/api/setup', requireAuth, (req, res) => {
   state.umpire       = String(b.umpire       || '').trim().slice(0, 100);
   state.serviceJudge = String(b.serviceJudge || '').trim().slice(0, 100);
 
+  // Interval durations (seconds) — required, numeric, clamped 1..3600
+  const p11 = parseInt(b.intervalPoint11, 10);
+  const nxt = parseInt(b.intervalNextGame, 10);
+  if (!isNaN(p11)) state.intervalPoint11  = Math.min(3600, Math.max(1, p11));
+  if (!isNaN(nxt)) state.intervalNextGame = Math.min(3600, Math.max(1, nxt));
+
   state.isSetupComplete = true;
   broadcast();
   res.json({ ok: true, state });
@@ -515,7 +594,7 @@ app.post('/api/setup-player', requireAuth, (req, res) => {
 });
 
 // Read court configs
-app.get('/api/courts', requireAuth, (_, res) => {
+app.get('/api/courts', requireAuth, async (_, res) => {
   const courts = [];
   for (let i = 1; i <= 6; i++) {
     const f = path.join(BASE_DIR, `.env.court${i}`);
@@ -528,6 +607,11 @@ app.get('/api/courts', requireAuth, (_, res) => {
       courts.push({ num: i, pin: String(1111 + (i-1)*1111), port: 3000 + i, active: false });
     }
   }
+  // Probe which configured court servers are ACTUALLY running (listening on their port)
+  await Promise.all(courts.map(async c => {
+    const p = parseInt(c.port, 10);
+    c.running = (p === PORT) ? true : (c.active ? await isPortOpen(p) : false);
+  }));
   res.json(courts);
 });
 
@@ -545,6 +629,89 @@ app.post('/api/courts/save', requireAuth, (req, res) => {
     fs.writeFileSync(path.join(BASE_DIR, `.env.court${num}`), content, 'utf8');
   });
   res.json({ ok: true });
+});
+
+// Start selected court server processes
+app.post('/api/courts/start', requireAuth, async (req, res) => {
+  const { courts } = req.body;
+  if (!Array.isArray(courts) || !courts.length)
+    return res.status(400).json({ ok: false, msg: 'Tidak ada court dipilih' });
+
+  const { spawn } = require('child_process');
+  const started = [], skipped = [], errors = [];
+
+  for (const num of courts) {
+    const n = parseInt(num, 10);
+    if (isNaN(n) || n < 1 || n > 6) continue;
+
+    const envFile = path.join(BASE_DIR, `.env.court${n}`);
+    if (!fs.existsSync(envFile)) {
+      errors.push(`Court ${n}: konfigurasi belum disimpan`);
+      continue;
+    }
+
+    const raw    = fs.readFileSync(envFile, 'utf8');
+    const port   = parseInt((raw.match(/PORT=(.+)/)           || [])[1]?.trim() || (3000 + n), 10);
+    const pin    = (raw.match(/CONTROLLER_PIN=(.+)/)          || [])[1]?.trim() || '1234';
+    const secret = (raw.match(/SESSION_SECRET=(.+)/)          || [])[1]?.trim() || `court${n}-${Date.now()}`;
+
+    // Already running (this server or a previously started court) → skip
+    if (port === PORT || await isPortOpen(port)) { skipped.push(n); continue; }
+
+    try {
+      let child;
+      if (IS_PKG) {
+        // Running as packaged .exe — launch another copy with env overrides
+        child = spawn(process.execPath, [], {
+          cwd: BASE_DIR,
+          env: { ...process.env, PORT: String(port), CONTROLLER_PIN: pin, SESSION_SECRET: secret },
+          detached: true,
+          stdio: 'ignore'
+        });
+      } else {
+        // Dev mode — node -r dotenv/config server.js dotenv_config_path=.env.courtN
+        child = spawn(process.execPath,
+          ['-r', 'dotenv/config', __filename, `dotenv_config_path=.env.court${n}`], {
+          cwd: BASE_DIR,
+          env: process.env,
+          detached: true,
+          stdio: 'ignore'
+        });
+      }
+      child.unref();
+      started.push(n);
+    } catch (e) {
+      errors.push(`Court ${n}: ${e.message}`);
+    }
+  }
+
+  if (errors.length && !started.length && !skipped.length)
+    return res.status(500).json({ ok: false, msg: errors.join('; ') });
+
+  res.json({ ok: true, started, skipped, errors });
+});
+
+// Stop a running court server process
+app.post('/api/courts/stop', requireAuth, async (req, res) => {
+  const n = parseInt(req.body.num, 10);
+  if (isNaN(n) || n < 1 || n > 6) return res.status(400).json({ ok: false, msg: 'Court tidak valid' });
+
+  const envFile = path.join(BASE_DIR, `.env.court${n}`);
+  if (!fs.existsSync(envFile)) return res.status(400).json({ ok: false, msg: 'Court belum dikonfigurasi' });
+
+  const raw  = fs.readFileSync(envFile, 'utf8');
+  const port = parseInt((raw.match(/PORT=(.+)/) || [])[1]?.trim() || (3000 + n), 10);
+
+  // Refuse to kill the server that is hosting this admin panel
+  if (port === PORT)
+    return res.status(400).json({ ok: false, msg: 'Tidak dapat menghentikan court ini (server admin berjalan di sini)' });
+
+  if (!(await isPortOpen(port)))
+    return res.json({ ok: true, alreadyStopped: true, msg: 'Court sudah berhenti' });
+
+  const killed = await killPort(port);
+  if (killed) return res.json({ ok: true });
+  return res.status(500).json({ ok: false, msg: 'Gagal menghentikan proses court' });
 });
 
 
@@ -617,7 +784,8 @@ app.post('/api/next-game', requireAuth, (req, res) => {
   if (state.activeGame >= 3)  return res.status(400).json({ ok: false, msg: 'Sudah Game 3' });
   if (state.isMatchOver)      return res.status(400).json({ ok: false, msg: 'Match selesai' });
   state.activeGame++;
-  state.isInterval = false;
+  state.isInterval = true;              // start the between-games break
+  state.intervalType = 'nextgame';
   state.challenges = { L: 2, R: 2 }; // Reset challenges per game
   state.hasServed  = { L: false, R: false }; // reset doubles service-turn tracking
   broadcast();
@@ -627,6 +795,7 @@ app.post('/api/next-game', requireAuth, (req, res) => {
 // Dismiss interval banner
 app.post('/api/dismiss-interval', requireAuth, (req, res) => {
   state.isInterval = false;
+  state.intervalType = null;
   broadcast();
   res.json({ ok: true });
 });
@@ -659,6 +828,18 @@ app.post('/api/walkover', requireAuth, (req, res) => {
     const fname = fpath ? require('path').basename(fpath) : null;
     io.emit('pdf_auto_exported', { ok: !!fpath, file: fname });
   });
+  res.json({ ok: true });
+});
+
+// Issue a card (yellow/red) to a player
+app.post('/api/card', requireAuth, (req, res) => {
+  const { side, player, cardType } = req.body;
+  if (!['L', 'R'].includes(side)) return res.status(400).json({ ok: false, msg: 'Invalid side' });
+  if (!['p1', 'p2'].includes(player)) return res.status(400).json({ ok: false, msg: 'Invalid player' });
+  if (!['yellow', 'red'].includes(cardType)) return res.status(400).json({ ok: false, msg: 'Invalid card type' });
+  if (!state.cards) state.cards = { L: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } }, R: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } } };
+  state.cards[side][player][cardType]++;
+  broadcast();
   res.json({ ok: true });
 });
 

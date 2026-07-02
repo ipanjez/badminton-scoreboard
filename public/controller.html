@@ -74,6 +74,12 @@
     .ac-item-del:hover { background: #ef4444; color: #fff; }
     /* Invalid required field highlight */
     .field-error { border-color:#ef4444 !important; box-shadow:0 0 0 2px rgba(239,68,68,.30) !important; }
+    /* Inline "new entry" hint below a field */
+    .new-entry-hint {
+      margin-top: 4px; background: #fffbeb; border: 1px solid #fcd34d; color: #92400e;
+      font-size: 0.7rem; font-weight: 600; padding: 3px 8px; border-radius: 8px; line-height: 1.3;
+    }
+    .new-entry-hint.hidden { display: none; }
     /* Court panel */
     #court-panel { transition: all 0.2s; }
     .court-player { cursor: pointer; transition: filter 0.15s; }
@@ -199,10 +205,19 @@
       </div>
       <!-- Shuttlecock MINUS (shared total) -->
       <div class="flex flex-col items-center gap-1 mt-1">
-        <button onclick="addCock('L', -1)" class="w-16 h-16 rounded-full bg-slate-100 border-2 border-slate-300 hover:bg-slate-200 active:scale-95 flex items-center justify-center shadow-sm transition btn-match-action" title="Kurangi jumlah kok">
-          <span class="text-4xl font-black text-slate-600 leading-none">−</span>
+        <button onclick="addCock('L', -1)" class="w-28 h-28 rounded-full bg-slate-100 border-2 border-slate-300 hover:bg-slate-200 active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm transition btn-match-action" title="Kurangi jumlah kok">
+          <svg width="30" height="35" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <ellipse cx="20" cy="43" rx="11" ry="7" fill="#475569"/>
+            <circle cx="20" cy="35" r="5" fill="#475569"/>
+            <line x1="20" y1="31" x2="4"  y2="6" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="20" y1="31" x2="10" y2="3" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="20" y1="31" x2="20" y2="1" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="20" y1="31" x2="30" y2="3" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="20" y1="31" x2="36" y2="6" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M4 6 Q10 1 20 1 Q30 1 36 6" stroke="#475569" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+          </svg>
+          <span class="text-slate-700 font-black text-[13px] leading-none">− KOK</span>
         </button>
-        <span class="text-[11px] font-black text-slate-600 uppercase tracking-wide">🏸 Kurangi Kok</span>
         <span class="text-[11px] text-slate-500 font-bold">Total: <span id="cock-count-L" class="text-slate-800">0</span></span>
       </div>
 
@@ -210,8 +225,7 @@
 
       <!-- Score (round, bottom, no number) -->
       <button onclick="addPoint('L')" class="w-full max-w-[210px] aspect-square rounded-full bg-blue-600 hover:bg-blue-500 text-white flex flex-col items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.35)] transition transform active:scale-95 btn-match-action" title="Tambah poin Tim L">
-        <span class="text-4xl font-black uppercase tracking-wider">Score</span>
-        <span class="text-blue-100 text-xs font-bold mt-1">👆 Ketuk +1</span>
+        <span class="text-4xl font-black leading-none tracking-widest">SCORE</span>
       </button>
     </div>
 
@@ -222,8 +236,9 @@
       <div class="flex items-center justify-between px-2 mb-1 flex-shrink-0 gap-2">
         <div class="flex items-center gap-2 flex-shrink-0">
           <div class="text-white font-mono text-base bg-slate-800 px-4 py-1.5 rounded-full border border-slate-700 shadow-inner" id="match-timer-display">00:00</div>
-          <button id="btn-next-game" onclick="nextGame()" class="hidden bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-1.5 rounded-full text-xs shadow-[0_0_10px_rgba(37,99,235,0.8)] transition flex items-center gap-1" title="Lanjut Game Berikutnya">▶ Lanjut Game</button>
+          <button id="btn-next-game" onclick="nextGame()" class="hidden animate-pulse bg-green-600 hover:bg-green-500 text-white font-black px-5 py-2 rounded-full text-sm uppercase tracking-wide shadow-[0_0_20px_rgba(22,163,74,0.9)] ring-2 ring-green-300 transition flex items-center gap-1.5" title="Lanjut Game Berikutnya">👉 ▶ LANJUT GAME</button>
           <button onclick="triggerWalkover()" class="bg-red-100 hover:bg-red-200 text-red-700 border border-red-300 font-bold px-4 py-1.5 rounded-full text-xs shadow-sm flex items-center gap-1 transition" title="Menang Walkover">🚑 WALKOVER</button>
+          <button onclick="openCardModal()" class="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 border border-yellow-400 font-bold px-4 py-1.5 rounded-full text-xs shadow-sm flex items-center gap-1 transition" title="Pelanggaran / Kartu">🃏 PELANGGARAN</button>
         </div>
         <div id="c-prev-games" class="flex gap-1.5 text-xs justify-end min-w-0 overflow-hidden">
           <!-- Populated by JS -->
@@ -244,13 +259,15 @@
             ▶ PLAY
           </button>
           
-          <div id="select-serve-receive" class="hidden w-full max-w-sm bg-slate-200 border border-slate-400 p-4 rounded-2xl text-center shadow-2xl">
-            <h3 class="text-yellow-400 font-bold mb-3 text-sm">Pilih Server Pertama</h3>
-            <div class="flex gap-2 justify-center mb-4">
-              <button onclick="setServe('L')" id="btn-sel-s-L" class="flex-1 py-3 rounded-lg bg-slate-300 hover:bg-slate-600 border-2 border-transparent font-bold text-sm">TIM L</button>
-              <button onclick="setServe('R')" id="btn-sel-s-R" class="flex-1 py-3 rounded-lg bg-slate-300 hover:bg-slate-600 border-2 border-transparent font-bold text-sm">TIM R</button>
+          <div id="select-serve-receive" class="hidden w-full max-w-sm bg-slate-900 border-2 border-yellow-400 p-5 rounded-2xl text-center shadow-2xl">
+            <div class="text-3xl mb-1">🎯</div>
+            <h3 class="text-yellow-300 font-black mb-1 text-xl uppercase tracking-wide">Pilih Server Pertama</h3>
+            <p class="text-slate-400 text-xs mb-4">Siapa yang servis di awal pertandingan?</p>
+            <div class="flex gap-3 justify-center mb-4">
+              <button onclick="setServe('L')" id="btn-sel-s-L" class="flex-1 py-3 rounded-xl bg-blue-700 hover:bg-blue-500 border-2 border-transparent font-black text-sm text-white transition">TIM L</button>
+              <button onclick="setServe('R')" id="btn-sel-s-R" class="flex-1 py-3 rounded-xl bg-orange-700 hover:bg-orange-500 border-2 border-transparent font-black text-sm text-white transition">TIM R</button>
             </div>
-            <button onclick="confirmMatchStart()" class="w-full bg-green-600 hover:bg-green-500 text-slate-900 font-bold py-3 rounded-xl text-sm">
+            <button id="btn-confirm-match" onclick="confirmMatchStart()" disabled class="w-full py-3 rounded-xl font-black text-base transition cursor-not-allowed opacity-40 bg-slate-600 text-slate-300">
               MULAI MATCH
             </button>
           </div>
@@ -314,7 +331,7 @@
 
         <!-- Floating PDF + Reset (right-center, over empty green space) -->
         <div class="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-3">
-          <button onclick="exportPDF()" class="w-16 h-16 bg-green-600/95 hover:bg-green-500 rounded-2xl flex flex-col items-center justify-center text-white shadow-xl transition transform hover:scale-105 active:scale-95" title="Export PDF Scoresheet">
+          <button id="btn-export-pdf" onclick="exportPDF()" class="w-16 h-16 bg-green-600/95 hover:bg-green-500 rounded-2xl flex flex-col items-center justify-center text-white shadow-xl transition transform hover:scale-105 active:scale-95" title="Export PDF Scoresheet">
             <span class="text-3xl leading-none">📄</span>
             <span class="text-[9px] font-bold mt-0.5">PDF</span>
           </button>
@@ -369,10 +386,19 @@
       </div>
       <!-- Shuttlecock PLUS (shared total) -->
       <div class="flex flex-col items-center gap-1 mt-1">
-        <button onclick="addCock('L', 1)" class="w-16 h-16 rounded-full bg-slate-100 border-2 border-slate-300 hover:bg-slate-200 active:scale-95 flex items-center justify-center shadow-sm transition btn-match-action" title="Tambah jumlah kok">
-          <span class="text-4xl font-black text-slate-600 leading-none">+</span>
+        <button onclick="addCock('L', 1)" class="w-28 h-28 rounded-full bg-slate-100 border-2 border-slate-300 hover:bg-slate-200 active:scale-95 flex flex-col items-center justify-center gap-1 shadow-sm transition btn-match-action" title="Tambah jumlah kok">
+          <svg width="30" height="35" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg" fill="none">
+            <ellipse cx="20" cy="43" rx="11" ry="7" fill="#475569"/>
+            <circle cx="20" cy="35" r="5" fill="#475569"/>
+            <line x1="20" y1="31" x2="4"  y2="6" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="20" y1="31" x2="10" y2="3" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="20" y1="31" x2="20" y2="1" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="20" y1="31" x2="30" y2="3" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="20" y1="31" x2="36" y2="6" stroke="#475569" stroke-width="2.2" stroke-linecap="round"/>
+            <path d="M4 6 Q10 1 20 1 Q30 1 36 6" stroke="#475569" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+          </svg>
+          <span class="text-slate-700 font-black text-[13px] leading-none">+ KOK</span>
         </button>
-        <span class="text-[11px] font-black text-slate-600 uppercase tracking-wide">🏸 Tambah Kok</span>
         <span class="text-[11px] text-slate-500 font-bold">Total: <span id="cock-count-R" class="text-slate-800">0</span></span>
       </div>
 
@@ -380,8 +406,7 @@
 
       <!-- Score (round, bottom, no number) -->
       <button onclick="addPoint('R')" class="w-full max-w-[210px] aspect-square rounded-full bg-orange-600 hover:bg-orange-500 text-white flex flex-col items-center justify-center shadow-[0_0_20px_rgba(234,88,12,0.35)] transition transform active:scale-95 btn-match-action" title="Tambah poin Tim R">
-        <span class="text-4xl font-black uppercase tracking-wider">Score</span>
-        <span class="text-orange-100 text-xs font-bold mt-1">👆 Ketuk +1</span>
+        <span class="text-4xl font-black leading-none tracking-widest">SCORE</span>
       </button>
     </div>
 
@@ -396,8 +421,8 @@
   <div class="bg-white rounded-3xl w-[400px] border border-slate-400 shadow-2xl flex flex-col items-center p-8">
     <div class="text-yellow-500 text-6xl mb-2">⏱</div>
     <h2 class="text-slate-900 font-black text-3xl mb-1">INTERVAL</h2>
-    <div class="text-slate-600 mb-6 text-sm font-bold">Waktu istirahat sedang berlangsung</div>
-    <div class="text-[5rem] leading-none font-black text-slate-800 mb-8" id="interval-countdown">20</div>
+    <div class="text-slate-600 mb-6 text-sm font-bold" id="interval-subtitle">Waktu istirahat sedang berlangsung</div>
+    <div class="text-[5rem] leading-none font-black text-slate-800 mb-8" id="interval-countdown">60</div>
     <button onclick="dismissInterval()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl transition text-xl shadow-[0_0_15px_rgba(37,99,235,0.4)]">
       ▶ Lanjutkan
     </button>
@@ -435,7 +460,7 @@
       <div class="bg-slate-100 p-5 rounded-2xl border border-slate-300 shadow-sm">
         
         <div class="mb-4">
-            <label class="text-sm font-bold text-slate-700">NAMA TURNAMEN</label>
+            <label class="text-sm font-bold text-slate-700">NAMA TURNAMEN <span class="text-red-500">*</span></label>
             <div class="ac-wrap w-full mt-1">
               <input id="s-tournament" type="text" placeholder="Cth: Pupuk Kaltim Open 2025" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold"
                 oninput="acSearch(this,'tournaments','ac-tournament'); debounceSetupUpdate()" onblur="acHide('ac-tournament',300)">
@@ -446,7 +471,7 @@
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label class="text-sm font-bold text-slate-700">LAPANGAN / COURT</label>
+            <label class="text-sm font-bold text-slate-700">LAPANGAN / COURT <span class="text-red-500">*</span></label>
             <div class="ac-wrap w-full mt-1">
               <input id="s-court" type="text" placeholder="Court 1" maxlength="20" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white text-center font-bold" oninput="acSearch(this,'courts','ac-court'); debounceSetupUpdate()" onblur="acHide('ac-court',300)">
               <button type="button" onmousedown="acShowAll('s-court','courts','ac-court')" class="ac-btn-all" tabindex="-1">&#9660;</button>
@@ -454,7 +479,7 @@
             </div>
           </div>
           <div>
-            <label class="text-sm font-bold text-slate-700">MATCH NO</label>
+            <label class="text-sm font-bold text-slate-700">MATCH NO <span class="text-red-500">*</span></label>
             <div class="ac-wrap w-full mt-1">
               <input id="s-matchno" type="text" placeholder="QF-3" maxlength="20" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white text-center font-bold" oninput="acSearch(this,'matchNumbers','ac-matchno'); debounceSetupUpdate()" onblur="acHide('ac-matchno',300)">
               <button type="button" onmousedown="acShowAll('s-matchno','matchNumbers','ac-matchno')" class="ac-btn-all" tabindex="-1">&#9660;</button>
@@ -462,7 +487,7 @@
             </div>
           </div>
           <div>
-            <label class="text-sm font-bold text-slate-700">WASIT (UMPIRE)</label>
+            <label class="text-sm font-bold text-slate-700">WASIT (UMPIRE) <span class="text-red-500">*</span></label>
             <div class="ac-wrap w-full mt-1">
               <input id="s-umpire" type="text" placeholder="Nama Wasit" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold"
                 oninput="acSearch(this,'umpires','ac-umpire'); debounceSetupUpdate()" onblur="acHide('ac-umpire',300)">
@@ -471,7 +496,7 @@
             </div>
           </div>
           <div>
-            <label class="text-sm font-bold text-slate-700">SERVICE JUDGE</label>
+            <label class="text-sm font-bold text-slate-700">SERVICE JUDGE <span class="text-red-500">*</span></label>
             <div class="ac-wrap w-full mt-1">
               <input id="s-sj" type="text" placeholder="Nama Service Judge" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold"
                 oninput="acSearch(this,'umpires','ac-sj'); debounceSetupUpdate()" onblur="acHide('ac-sj',300)">
@@ -511,7 +536,7 @@
               </div>
             </div>
             <div class="flex-1 min-w-0">
-              <label class="text-xs font-bold text-slate-700 truncate block">NAMA KLUB / PB</label>
+              <label class="text-xs font-bold text-slate-700 truncate block">NAMA KLUB / PB <span class="text-red-500">*</span></label>
               <div class="ac-wrap w-full mt-1">
                 <input id="p-club-L" type="text" placeholder="PB Djarum" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'clubs','pac-club-L'); debounceSetupUpdate()" onblur="acHide('pac-club-L',300)">
                 <button type="button" onmousedown="acShowAll('p-club-L','clubs','pac-club-L')" class="ac-btn-all" tabindex="-1">&#9660;</button>
@@ -521,7 +546,7 @@
           </div>
           <div class="space-y-4">
             <div>
-              <label class="text-sm font-bold text-slate-700">PEMAIN 1</label>
+              <label class="text-sm font-bold text-slate-700">PEMAIN 1 <span class="text-red-500">*</span></label>
               <div class="ac-wrap w-full mt-1">
                 <input id="p-p1-L" type="text" placeholder="Nama Pemain 1" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'players','pac-p1-L'); debounceSetupUpdate()" onblur="acHide('pac-p1-L',300)">
                 <button type="button" onmousedown="acShowAll('p-p1-L','players','pac-p1-L')" class="ac-btn-all" tabindex="-1">&#9660;</button>
@@ -559,7 +584,7 @@
               </div>
             </div>
             <div class="flex-1 min-w-0">
-              <label class="text-xs font-bold text-slate-700 truncate block">NAMA KLUB / PB</label>
+              <label class="text-xs font-bold text-slate-700 truncate block">NAMA KLUB / PB <span class="text-red-500">*</span></label>
               <div class="ac-wrap w-full mt-1">
                 <input id="p-club-R" type="text" placeholder="PB Jaya Raya" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'clubs','pac-club-R'); debounceSetupUpdate()" onblur="acHide('pac-club-R',300)">
                 <button type="button" onmousedown="acShowAll('p-club-R','clubs','pac-club-R')" class="ac-btn-all" tabindex="-1">&#9660;</button>
@@ -569,7 +594,7 @@
           </div>
           <div class="space-y-4">
             <div>
-              <label class="text-sm font-bold text-slate-700">PEMAIN 1</label>
+              <label class="text-sm font-bold text-slate-700">PEMAIN 1 <span class="text-red-500">*</span></label>
               <div class="ac-wrap w-full mt-1">
                 <input id="p-p1-R" type="text" placeholder="Nama Pemain 1" maxlength="100" autocomplete="off" class="w-full text-lg p-2 rounded-lg border border-slate-300 bg-white font-bold" oninput="acSearch(this,'players','pac-p1-R'); debounceSetupUpdate()" onblur="acHide('pac-p1-R',300)">
                 <button type="button" onmousedown="acShowAll('p-p1-R','players','pac-p1-R')" class="ac-btn-all" tabindex="-1">&#9660;</button>
@@ -600,8 +625,19 @@
         ⚠️ Pertandingan tidak seimbang (2 lawan 1). Harap lengkapi Pemain 2 untuk kedua tim, atau kosongkan keduanya jika ingin bermain tunggal.
       </div>
 
-      <div id="setup-new-warning" class="hidden text-amber-800 bg-amber-50 p-3 rounded-xl border border-amber-300 text-sm font-medium leading-relaxed">
-        <!-- Populated by checkNewEntries() -->
+      <!-- Interval Durations -->
+      <div class="bg-slate-100 p-4 rounded-2xl border border-slate-300 shadow-sm">
+        <label class="text-sm font-bold text-slate-700">⏱ DURASI INTERVAL (DETIK) <span class="text-red-500">*</span></label>
+        <div class="grid grid-cols-2 gap-4 mt-2">
+          <div>
+            <span class="text-xs font-bold text-slate-600">Interval Skor 11</span>
+            <input id="s-interval-11" type="number" min="1" max="3600" step="1" placeholder="60" class="w-full text-lg mt-1 p-2 rounded-lg border border-slate-300 bg-white text-center font-bold" oninput="this.classList.remove('field-error')">
+          </div>
+          <div>
+            <span class="text-xs font-bold text-slate-600">Jeda Antar Game</span>
+            <input id="s-interval-game" type="number" min="1" max="3600" step="1" placeholder="120" class="w-full text-lg mt-1 p-2 rounded-lg border border-slate-300 bg-white text-center font-bold" oninput="this.classList.remove('field-error')">
+          </div>
+        </div>
       </div>
 
       <!-- Bottom Section: TV Config -->
@@ -664,6 +700,21 @@
         <button onclick="doWalkover('R')" class="flex-1 bg-orange-600 hover:bg-orange-500 text-white py-3 rounded-xl font-black">Tim R (Kanan)</button>
       </div>
       <button onclick="closeWalkoverModal()" class="w-full bg-slate-300 hover:bg-slate-400 text-slate-900 py-2 rounded-xl font-bold">Batal</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CARD / PELANGGARAN MODAL ── -->
+<div id="card-modal" class="modal-bg hidden" onclick="closeCardModal()">
+  <div class="bg-white rounded-3xl w-full max-w-sm border-2 border-yellow-400 shadow-2xl mt-20" onclick="event.stopPropagation()">
+    <div class="p-6">
+      <div class="text-5xl text-center mb-2">🃏</div>
+      <h3 class="text-slate-900 font-black text-xl text-center mb-1">Pelanggaran / Kartu</h3>
+      <p class="text-slate-500 text-xs text-center mb-4">Pilih 🟨 Kuning atau 🟥 Merah untuk pemain yang melakukan pelanggaran</p>
+      <div id="card-player-list" class="space-y-2 mb-4">
+        <!-- Populated by JS -->
+      </div>
+      <button onclick="closeCardModal()" class="w-full bg-slate-300 hover:bg-slate-400 text-slate-900 py-3 rounded-xl font-bold">Batal</button>
     </div>
   </div>
 </div>
@@ -979,6 +1030,7 @@
     const cockTotal = (s.shuttlecocks?.L || 0) + (s.shuttlecocks?.R || 0);
     ['L','R'].forEach(side => {
       const t = s.teams[side];
+      if ($id(`score-num-${side}`)) $id(`score-num-${side}`).textContent = sc[side];
       if ($id(`cock-count-${side}`)) $id(`cock-count-${side}`).textContent = cockTotal;
       if ($id(`c-club-${side}`)) $id(`c-club-${side}`).textContent = t.club || '—';
       if ($id(`c-sets-${side}`)) $id(`c-sets-${side}`).textContent = s.gamesWon?.[side] ?? 0;
@@ -988,13 +1040,13 @@
       const activeIdx = (s.serverP2 && s.serverP2[side]) ? 2 : 1;
       const p1El = $id(`c-p1-${side}`), p2El = $id(`c-p2-${side}`);
       if (p1El) {
-        p1El.textContent = (t.flag ? t.flag + ' ' : '') + (t.player1 || `TIM ${side}`);
+        p1El.textContent = (t.flag ? t.flag + ' ' : '') + (t.player1 || `TIM ${side}`) + getCardMark(side, 'p1');
         p1El.className = 'text-xs font-bold leading-tight truncate ' +
           (isServing && activeIdx === 1 ? 'bg-yellow-300 text-slate-900 rounded px-1' : 'text-slate-800');
       }
       if (p2El) {
         if (t.player2) {
-          p2El.textContent = t.player2;
+          p2El.textContent = t.player2 + getCardMark(side, 'p2');
           p2El.className = 'text-xs font-bold leading-tight truncate mt-0.5 ' +
             (isServing && activeIdx === 2 ? 'bg-yellow-300 text-slate-900 rounded px-1' : 'text-slate-600');
         } else {
@@ -1049,8 +1101,10 @@
       $id('match-winner-label').textContent =
         `${teamName(s.teams[s.winner])} menang ${s.gamesWon.L}–0${s.gamesWon.R}`;
       matchBar.classList.remove('hidden');
+      setEndActionsHighlight(true);
     } else {
       matchBar.classList.add('hidden');
+      setEndActionsHighlight(false);
     }
     // Interval banner & modal
     if (s.isInterval && !s.isMatchOver) {
@@ -1060,8 +1114,11 @@
       
       if ($id('interval-modal').classList.contains('hidden')) {
          $id('interval-modal').classList.remove('hidden');
-         intervalSeconds = 20;
-         $id('interval-countdown').textContent = intervalSeconds;
+         const isNextGame = s.intervalType === 'nextgame';
+         intervalSeconds = isNextGame ? (s.intervalNextGame || 120) : (s.intervalPoint11 || 60);
+         if ($id('interval-subtitle')) $id('interval-subtitle').textContent =
+           isNextGame ? 'Jeda antar game sedang berlangsung' : 'Waktu istirahat sedang berlangsung';
+         $id('interval-countdown').textContent = fmtCountdown(intervalSeconds);
          clearInterval(intervalTimer);
          intervalTimer = setInterval(() => {
            intervalSeconds--;
@@ -1072,7 +1129,7 @@
            } else {
              $id('interval-countdown').classList.remove('text-red-500');
            }
-           $id('interval-countdown').textContent = intervalSeconds;
+           $id('interval-countdown').textContent = fmtCountdown(intervalSeconds);
          }, 1000);
       }
     } else {
@@ -1203,18 +1260,40 @@
     });
   }
 
+  // Highlight PDF & Reset buttons once the match is over so the operator
+  // clearly knows what to do next.
+  function setEndActionsHighlight(on) {
+    const cls = ['animate-pulse', 'ring-4', 'ring-yellow-300'];
+    ['btn-export-pdf', 'btn-reset-match'].forEach(id => {
+      const btn = $id(id);
+      if (!btn) return;
+      if (on) btn.classList.add(...cls);
+      else    btn.classList.remove(...cls);
+    });
+  }
+
   function startPlayFlow() {
     $id('btn-main-play').classList.add('hidden');
     $id('select-serve-receive').classList.remove('hidden');
+    // Reset team selection highlights and disable confirm button
+    ['L','R'].forEach(s => { const b = $id('btn-sel-s-' + s); if(b) b.classList.remove('ring-4','ring-yellow-400','scale-105'); });
+    const btnC = $id('btn-confirm-match');
+    if (btnC) { btnC.disabled = true; btnC.className = 'w-full py-3 rounded-xl font-black text-base transition cursor-not-allowed opacity-40 bg-slate-600 text-slate-300'; }
     // Default select none, wait for click
     api('/api/serve', { side: null });
   }
 
   function setServe(side) {
     api('/api/serve', { side });
-    $id('btn-sel-s-L').classList.remove('ring-4', 'ring-yellow-400');
-    $id('btn-sel-s-R').classList.remove('ring-4', 'ring-yellow-400');
-    $id(`btn-sel-s-${side}`).classList.add('ring-4', 'ring-yellow-400');
+    $id('btn-sel-s-L').classList.remove('ring-4', 'ring-yellow-400', 'scale-105');
+    $id('btn-sel-s-R').classList.remove('ring-4', 'ring-yellow-400', 'scale-105');
+    $id(`btn-sel-s-${side}`).classList.add('ring-4', 'ring-yellow-400', 'scale-105');
+    // Enable MULAI MATCH button
+    const btnC = $id('btn-confirm-match');
+    if (btnC) {
+      btnC.disabled = false;
+      btnC.className = 'w-full py-3 rounded-xl font-black text-base transition bg-green-500 hover:bg-green-400 text-slate-900 animate-pulse shadow-[0_0_20px_rgba(22,163,74,0.6)]';
+    }
   }
 
   async function confirmMatchStart() {
@@ -1267,6 +1346,16 @@
 
   let intervalTimer = null;
   let intervalSeconds = 20;
+
+  // Format a countdown value (seconds) as m:ss when >= 60, otherwise raw seconds.
+  function fmtCountdown(sec) {
+    if (sec >= 60) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return m + ':' + String(s).padStart(2, '0');
+    }
+    return String(sec);
+  }
   
   async function addCock(side, change) {
     if (!currentState || currentState.isMatchOver) return;
@@ -1540,12 +1629,14 @@
       const rightBoxId = side === 'L' ? 'cp-L-bot-txt' : 'cp-R-top-txt';
       const leftBoxId  = side === 'L' ? 'cp-L-top-txt' : 'cp-R-bot-txt';
 
+      const activePlayerKey = activeP === 1 ? 'p1' : 'p2';
+      const otherPlayerKey  = activeP === 1 ? 'p2' : 'p1';
       if (isSideEven) {
-        $id(rightBoxId).textContent = activeName || '';
-        if (s.teams[side].player2) $id(leftBoxId).textContent = otherName || '';
+        $id(rightBoxId).textContent = (activeName || '') + getCardMark(side, activePlayerKey);
+        if (s.teams[side].player2) $id(leftBoxId).textContent = (otherName || '') + getCardMark(side, otherPlayerKey);
       } else {
-        $id(leftBoxId).textContent = activeName || '';
-        if (s.teams[side].player2) $id(rightBoxId).textContent = otherName || '';
+        $id(leftBoxId).textContent = (activeName || '') + getCardMark(side, activePlayerKey);
+        if (s.teams[side].player2) $id(rightBoxId).textContent = (otherName || '') + getCardMark(side, otherPlayerKey);
       }
     });
   }
@@ -1725,6 +1816,7 @@
   
   async function doReset() {
     closeResetModal();
+    resetLocalCards();
     await api('/api/reset', {});
     toast('🔄 Match direset', 2000);
   }
@@ -1734,7 +1826,12 @@
   function exportPDF() {
     if (!currentState) { toast('⚠ Belum ada data', 2000); return; }
     try {
-      generateScoreSheet(currentState);
+      // Merge localCards into state when server doesn't have card data yet
+      const stateForPDF = Object.assign({}, currentState);
+      if (!stateForPDF.cards) {
+        stateForPDF.cards = JSON.parse(JSON.stringify(localCards));
+      }
+      generateScoreSheet(stateForPDF);
       toast('✅ PDF berhasil dibuat!', 3000);
     } catch (e) {
       console.error(e);
@@ -1771,6 +1868,8 @@
         if (!found) dd.selectedIndex = 0;
       });
       updateCategoryOptions(s.category || '');
+      $id('s-interval-11').value   = s.intervalPoint11  ?? 60;
+      $id('s-interval-game').value = s.intervalNextGame ?? 120;
     }
     $id('setup-modal').classList.remove('hidden');
     checkNewEntries();
@@ -1805,39 +1904,46 @@
 
   // Flag any entered value that is not yet in the database (dropdown). This is
   // informational only — such data is still valid and gets added to the DB on Save.
+  // Shows a small yellow hint directly below each field (not an aggregated recap).
   function checkNewEntries() {
     const map = [
-      ['s-tournament','tournaments','Nama Turnamen'],
-      ['s-court','courts','Lapangan / Court'],
-      ['s-matchno','matchNumbers','Match No'],
-      ['s-umpire','umpires','Wasit'],
-      ['s-sj','umpires','Service Judge'],
-      ['p-club-L','clubs','Klub Tim L'],
-      ['p-club-R','clubs','Klub Tim R'],
-      ['p-p1-L','players','Pemain 1 Tim L'],
-      ['p-p2-L','players','Pemain 2 Tim L'],
-      ['p-p1-R','players','Pemain 1 Tim R'],
-      ['p-p2-R','players','Pemain 2 Tim R'],
+      ['s-tournament','tournaments'],
+      ['s-court','courts'],
+      ['s-matchno','matchNumbers'],
+      ['s-umpire','umpires'],
+      ['s-sj','umpires'],
+      ['p-club-L','clubs'],
+      ['p-club-R','clubs'],
+      ['p-p1-L','players'],
+      ['p-p2-L','players'],
+      ['p-p1-R','players'],
+      ['p-p2-R','players'],
     ];
-    const newOnes = [];
-    map.forEach(([id, type, label]) => {
+    map.forEach(([id, type]) => {
       const el = $id(id);
       if (!el) return;
       const v = el.value.trim();
-      if (!v) return;
       const list = dbData[type] || [];
-      const exists = list.some(x => String(x).trim().toLowerCase() === v.toLowerCase());
-      if (!exists) newOnes.push({ label, v });
+      const exists = v && list.some(x => String(x).trim().toLowerCase() === v.toLowerCase());
+      showNewHint(el, !!v && !exists);
     });
-    const box = $id('setup-new-warning');
-    if (!box) return;
-    if (newOnes.length) {
-      box.innerHTML =
-        'ℹ️ <b>Data baru</b> (belum ada di dropdown/database) — tetap bisa dipakai untuk pertandingan ini, namun <b>tidak disimpan ke database</b>:<br>' +
-        newOnes.map(n => `• <b>${escHtml(n.label)}</b>: “${escHtml(n.v)}”`).join('<br>');
-      box.classList.remove('hidden');
-    } else {
-      box.classList.add('hidden');
+  }
+
+  // Create / toggle the small yellow "data baru" hint below a given input field.
+  function showNewHint(inputEl, isNew) {
+    const wrap = inputEl.closest('.ac-wrap') || inputEl.parentElement;
+    if (!wrap || !wrap.parentElement) return;
+    let hint = wrap.parentElement.querySelector(':scope > .new-entry-hint');
+    if (isNew) {
+      if (!hint) {
+        hint = document.createElement('div');
+        hint.className = 'new-entry-hint';
+        hint.textContent = 'ℹ️ Data tidak ada di pilihan dropdown';
+        wrap.parentElement.appendChild(hint);
+      }
+      hint.classList.remove('hidden');
+    } else if (hint) {
+      hint.classList.add('hidden');
     }
   }
 
@@ -1855,10 +1961,20 @@
       ['p-club-R','Klub Tim R'],
       ['p-p1-R','Pemain 1 Tim R'],
       ['s-category','Kategori Pertandingan'],
+      ['s-interval-11','Durasi Interval Skor 11'],
+      ['s-interval-game','Durasi Jeda Antar Game'],
     ];
     required.forEach(([id]) => $id(id).classList.remove('field-error'));
     let missing = 0;
     required.forEach(([id]) => { if (!val(id)) { $id(id).classList.add('field-error'); missing++; } });
+
+    // Interval durations must be positive whole numbers (seconds)
+    ['s-interval-11','s-interval-game'].forEach(id => {
+      const n = parseInt(val(id), 10);
+      if ((isNaN(n) || n < 1) && !$id(id).classList.contains('field-error')) {
+        $id(id).classList.add('field-error'); missing++;
+      }
+    });
 
     // Player-count balance: both teams tunggal, or both ganda
     const p2L = val('p-p2-L'), p2R = val('p-p2-R');
@@ -1879,6 +1995,8 @@
       matchNo:      val('s-matchno'),
       umpire:       val('s-umpire'),
       serviceJudge: val('s-sj'),
+      intervalPoint11:  val('s-interval-11'),
+      intervalNextGame: val('s-interval-game'),
     };
     const playerBody = {
       category: val('s-category'),
@@ -2144,6 +2262,112 @@
       }
     };
     await api('/api/setup-player', body);
+  }
+
+  // ───────────────────────────────────────────
+  //  Card / Pelanggaran
+  // ───────────────────────────────────────────
+  // Local card state — fallback when server doesn't yet have /api/card
+  // Persisted to localStorage so marks survive page refresh.
+  const LC_KEY = 'badminton_localCards';
+  let localCards = (() => {
+    try {
+      const saved = localStorage.getItem(LC_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      L: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } },
+      R: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } }
+    };
+  })();
+
+  function saveLocalCards() {
+    try { localStorage.setItem(LC_KEY, JSON.stringify(localCards)); } catch (e) {}
+  }
+  function resetLocalCards() {
+    localCards = {
+      L: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } },
+      R: { p1: { yellow: 0, red: 0 }, p2: { yellow: 0, red: 0 } }
+    };
+    try { localStorage.removeItem(LC_KEY); } catch (e) {}
+  }
+
+  function getCardMark(side, playerKey) {
+    // Prefer server-synced cards; fall back to local state
+    const source = currentState?.cards ? currentState.cards : localCards;
+    const c = source?.[side]?.[playerKey];
+    if (!c || (c.yellow === 0 && c.red === 0)) return '';
+    let marks = '';
+    if (c.yellow > 0) marks += ' 🟨' + (c.yellow > 1 ? 'x' + c.yellow : '');
+    if (c.red > 0)    marks += ' 🟥' + (c.red > 1 ? 'x' + c.red : '');
+    return marks;
+  }
+
+  function openCardModal() {
+    if (!currentState) return;
+    const s = currentState;
+    const list = $id('card-player-list');
+    const makeRow = (side, playerKey, name) => {
+      if (!name) return '';
+      // Use server state if available, otherwise local fallback
+      const src = s.cards ? s.cards : localCards;
+      const c = src?.[side]?.[playerKey] || { yellow: 0, red: 0 };
+      const bg     = side === 'L' ? 'background:#eff6ff;border:1.5px solid #93c5fd' : 'background:#fff7ed;border:1.5px solid #fdba74';
+      const teamLbl = side === 'L' ? '<span style="color:#2563eb;font-size:10px;font-weight:900;margin-right:4px">[L]</span>' : '<span style="color:#ea580c;font-size:10px;font-weight:900;margin-right:4px">[R]</span>';
+      // Card count badges
+      const ykBadge = c.yellow > 0
+        ? `<span style="background:#fbbf24;color:#78350f;font-size:10px;font-weight:900;padding:1px 6px;border-radius:999px;margin-right:2px">🟨${c.yellow > 1 ? ' x' + c.yellow : ''}</span>`
+        : '';
+      const rdBadge = c.red > 0
+        ? `<span style="background:#ef4444;color:#fff;font-size:10px;font-weight:900;padding:1px 6px;border-radius:999px;margin-right:2px">🟥${c.red > 1 ? ' x' + c.red : ''}</span>`
+        : '';
+      const countBadges = (ykBadge || rdBadge)
+        ? `<span class="flex-shrink-0 flex items-center gap-0.5">${ykBadge}${rdBadge}</span>`
+        : `<span class="flex-shrink-0 text-slate-300 text-[10px]">Belum ada</span>`;
+      return `<div class="flex items-center gap-2 rounded-xl p-2" style="${bg}">
+        <span class="flex-1 font-bold text-slate-800 text-sm truncate min-w-0">${teamLbl}${escHtml(name)}</span>
+        ${countBadges}
+        <button onclick="issueCard('${side}','${playerKey}','yellow')" class="flex-shrink-0 w-9 h-9 rounded-lg font-black text-yellow-900 flex items-center justify-center" style="background:#fbbf24" title="Tambah Kartu Kuning">🟨</button>
+        <button onclick="issueCard('${side}','${playerKey}','red')" class="flex-shrink-0 w-9 h-9 rounded-lg font-black text-white flex items-center justify-center" style="background:#ef4444" title="Tambah Kartu Merah">🟥</button>
+      </div>`;
+    };
+    list.innerHTML =
+      makeRow('L', 'p1', s.teams.L.player1 || 'Tim L - Pemain 1') +
+      (s.teams.L.player2 ? makeRow('L', 'p2', s.teams.L.player2) : '') +
+      makeRow('R', 'p1', s.teams.R.player1 || 'Tim R - Pemain 1') +
+      (s.teams.R.player2 ? makeRow('R', 'p2', s.teams.R.player2) : '');
+    $id('card-modal').classList.remove('hidden');
+  }
+
+  function closeCardModal() {
+    $id('card-modal').classList.add('hidden');
+  }
+
+  async function issueCard(side, playerKey, cardType) {
+    closeCardModal();
+    const labels = { yellow: 'Kartu Kuning 🟨', red: 'Kartu Merah 🟥' };
+    // Use raw fetch (NOT api() helper) to avoid login-redirect on 404
+    try {
+      const r = await fetch('/api/card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ side, player: playerKey, cardType })
+      });
+      const ct = r.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const data = await r.json();
+        if (data.ok) {
+          // Server will broadcast state_update — marks appear via socket
+          toast(`${labels[cardType]} diberikan`, 2000);
+          return;
+        }
+      }
+    } catch (e) { /* network error — fall through to local */ }
+    // Fallback: store locally and re-render immediately
+    localCards[side][playerKey][cardType]++;
+    saveLocalCards();
+    if (currentState) renderController(currentState);
+    toast(`${labels[cardType]} diberikan (lokal)`, 2000);
   }
 
   // Open setup on first load if no tournament set

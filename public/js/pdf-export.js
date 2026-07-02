@@ -597,6 +597,31 @@ function drawFooterPDF(doc, state, footerY) {
   const chalL = state.challenges ? state.challenges.L : 2;
   const chalR = state.challenges ? state.challenges.R : 2;
   doc.text('Kok: ' + totalKok + '  |  Chal: L=' + chalL + ' R=' + chalR, ML + 105, fY + 6.5);
+
+  /* Pelanggaran / Kartu */
+  const cards = state.cards;
+  if (cards) {
+    const cardTexts = [];
+    [['L','p1'],['L','p2'],['R','p1'],['R','p2']].forEach(([side, pk]) => {
+      const c = cards[side]?.[pk];
+      if (!c || (!c.yellow && !c.red)) return;
+      const t = state.teams[side];
+      const name = (pk === 'p1' ? t.player1 : t.player2) || '';
+      if (!name) return;
+      const sName = name.split(' ')[0];
+      let txt = '[' + side + '] ' + sName;
+      if (c.yellow) txt += ' KK' + (c.yellow > 1 ? 'x' + c.yellow : '');
+      if (c.red)    txt += ' KM' + (c.red    > 1 ? 'x' + c.red    : '');
+      cardTexts.push(txt);
+    });
+    if (cardTexts.length) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(160, 30, 0);
+      doc.text('Pelanggaran: ' + cardTexts.join('  |  '), ML, fY + 10);
+      doc.setTextColor(0);
+    }
+  }
   if (state.winner) {
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(state.isWalkover ? 160 : 0, state.isWalkover ? 60 : 120, 0);

@@ -298,11 +298,17 @@
       <div class="bg-slate-900 rounded-2xl p-4">
         <div class="flex items-center gap-3 mb-2">
           <div class="text-2xl font-black text-slate-400">C${c.num}</div>
-          ${parseInt(c.port) === serverInfo.port ? '<span class="text-xs bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 px-2 py-0.5 rounded-full font-bold">▶ AKTIF SEKARANG</span>' : ''}
+          ${c.running
+            ? '<span class="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-full font-bold">● BERJALAN</span>'
+            : (c.active ? '<span class="text-xs bg-slate-600/30 text-slate-400 border border-slate-500/40 px-2 py-0.5 rounded-full font-bold">○ Belum dijalankan</span>' : '')}
+          ${parseInt(c.port) === serverInfo.port ? '<span class="text-xs bg-yellow-400/20 text-yellow-300 border border-yellow-400/40 px-2 py-0.5 rounded-full font-bold">▶ COURT INI</span>' : ''}
+          ${c.running && parseInt(c.port) !== serverInfo.port
+            ? `<button onclick="stopCourt(${c.num})" class="ml-auto text-xs bg-red-600 hover:bg-red-500 text-white font-bold px-3 py-1 rounded-lg">⏹ Hentikan</button>`
+            : ''}
         </div>
           <div class="flex-1 grid grid-cols-3 gap-3">
             <div>
-              <label class="block text-xs text-slate-400 mb-1 font-bold">AKTIF</label>
+              <label class="block text-xs text-slate-400 mb-1 font-bold" title="Sertakan court ini saat menekan ▶ Jalankan Court Aktif">DIPILIH</label>
               <input type="checkbox" id="ct-active-${c.num}" ${c.active ? 'checked' : ''} class="w-5 h-5 accent-yellow-400">
             </div>
             <div>
@@ -315,7 +321,7 @@
             </div>
           </div>
         </div>
-        ${c.active ? `
+        ${c.running ? `
         <div class="mt-2 border-t border-slate-800 pt-2 space-y-1 text-xs">
           <div class="flex items-center gap-2 flex-wrap">
             <span class="text-slate-500 w-24 flex-shrink-0">📺 Display (TV)</span>
@@ -334,7 +340,9 @@
             <span class="text-slate-500 w-24 flex-shrink-0">💻 Localhost</span>
             <a href="${localBase}/display" target="_blank" class="text-slate-500 hover:text-slate-300">${localBase}/display</a>
           </div>
-        </div>` : '<div class="text-xs text-slate-600 italic mt-2">Court tidak aktif</div>'}
+        </div>` : (c.active
+            ? '<div class="text-xs text-slate-500 italic mt-2">Court dikonfigurasi tetapi belum berjalan — klik <strong class="text-emerald-400">▶ Jalankan Court Aktif</strong> untuk menjalankannya.</div>'
+            : '<div class="text-xs text-slate-600 italic mt-2">Court tidak aktif</div>')}
       </div>`;
     }).join('');
   }
@@ -354,15 +362,41 @@
     const courts = courtsData.map(c => ({
       num:    c.num,
       active: document.getElementById('ct-active-' + c.num)?.checked || false,
+      pin:    document.getElementById('ct-pin-'    + c.num)?.value   || c.pin,
+      port:   document.getElementById('ct-port-'   + c.num)?.value   || c.port,
     }));
     const selected = courts.filter(c => c.active).map(c => c.num);
-    if (!selected.length) return alert('Pilih court terlebih dahulu.');
+    if (!selected.length) return alert('Pilih court terlebih dahulu (centang DIPILIH).');
+
+    // Ensure the latest config is saved so each court's .env file exists
+    await api('/api/courts/save', { courts });
 
     const r = await api('/api/courts/start', { courts: selected });
     if (r.ok) {
-      alert('✅ Court aktif sedang dijalankan. Buka link kembali setelah proses siap.');
+      const parts = [];
+      if (r.started?.length) parts.push('▶ Dijalankan: Court ' + r.started.join(', '));
+      if (r.skipped?.length) parts.push('● Sudah berjalan: Court ' + r.skipped.join(', '));
+      if (r.errors?.length)  parts.push('⚠ ' + r.errors.join('; '));
+      alert('✅ ' + (parts.join('\n') || 'Perintah dikirim.') + '\n\nStatus akan diperbarui otomatis sebentar lagi.');
+      // Give the new processes a moment to boot, then refresh the running status
+      setTimeout(() => {
+        fetch('/api/courts').then(x => x.json()).then(d => { courtsData = d; renderCourts(); });
+      }, 2500);
     } else {
       alert('⚠ Gagal menjalankan court: ' + (r.msg || 'Server error'));
+    }
+  }
+
+  async function stopCourt(num) {
+    if (!confirm('Hentikan Court ' + num + '? Semua Display/Controller court ini akan terputus.')) return;
+    const r = await api('/api/courts/stop', { num });
+    if (r.ok) {
+      alert(r.alreadyStopped ? 'Court ' + num + ' memang sudah berhenti.' : '⏹ Court ' + num + ' dihentikan.');
+      setTimeout(() => {
+        fetch('/api/courts').then(x => x.json()).then(d => { courtsData = d; renderCourts(); });
+      }, 1200);
+    } else {
+      alert('⚠ Gagal menghentikan court: ' + (r.msg || 'Server error'));
     }
   }
 

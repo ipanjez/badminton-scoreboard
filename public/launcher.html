@@ -181,18 +181,19 @@
         return;
       }
       list.innerHTML = courts.map(c => {
-        const status = c.active ? 'Aktif' : 'Non-aktif';
-        const baseUrl = c.active ? `http://${window.location.hostname}:${c.port}` : '-';
+        const running = !!c.running;
+        const status = running ? 'Berjalan' : (c.active ? 'Belum dijalankan' : 'Non-aktif');
+        const baseUrl = running ? `http://${window.location.hostname}:${c.port}` : '-';
         return `
-          <div class="court-card ${c.active ? 'court-active' : 'court-inactive'}">
+          <div class="court-card ${running ? 'court-active' : 'court-inactive'}">
             <div class="court-head">
               <span class="court-title">Court ${c.num}</span>
               <span class="court-status">${status}</span>
             </div>
             <div class="court-details">
               <div><strong>Port</strong>: ${c.port}</div>
-              <div><strong>Display</strong>: ${c.active ? `<a href="${baseUrl}/display" target="_blank">${baseUrl}/display</a>` : '-'}</div>
-              <div><strong>Controller</strong>: ${c.active ? `<a href="${baseUrl}/controller" target="_blank">${baseUrl}/controller</a>` : '-'}</div>
+              <div><strong>Display</strong>: ${running ? `<a href="${baseUrl}/display" target="_blank">${baseUrl}/display</a>` : '-'}</div>
+              <div><strong>Controller</strong>: ${running ? `<a href="${baseUrl}/controller" target="_blank">${baseUrl}/controller</a>` : '-'}</div>
             </div>
           </div>`;
       }).join('');
@@ -204,7 +205,7 @@
         if (!res.ok) throw new Error('Tidak bisa memuat status launcher.');
         const data = await res.json();
         const lanText = data.localIPs.length ? data.localIPs.map(ip => `http://${ip}:${data.port}`).join(' | ') : 'Tidak ada IP LAN terdeteksi';
-        const activeCount = data.courts.filter(c => c.active).length;
+        const activeCount = data.courts.filter(c => c.running).length;
 
         document.getElementById('server-status').textContent = 'Aktif';
         document.getElementById('server-port').textContent = data.port;
