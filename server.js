@@ -580,6 +580,27 @@ app.post('/api/db/remove', requireAuth, (req, res) => {
   res.json({ ok: true, db });
 });
 
+// Rename item in DB
+app.post('/api/db/rename', requireAuth, (req, res) => {
+  const { type, oldVal, newVal } = req.body;
+  if (!['players','clubs','umpires','serviceJudges','tournaments','courts','matchNumbers'].includes(type))
+    return res.status(400).json({ ok: false });
+  
+  const vOld = String(oldVal || '').trim();
+  const vNew = String(newVal || '').trim().slice(0, 100);
+  if (!vOld || !vNew || vOld === vNew) return res.json({ ok: true, db });
+
+  if (db[type]) {
+    const idx = db[type].indexOf(vOld);
+    if (idx !== -1) {
+      db[type][idx] = vNew;
+      saveDB();
+      io.emit('db_updated', db);
+    }
+  }
+  res.json({ ok: true, db });
+});
+
 // Reorder items in DB
 app.post('/api/db/reorder', requireAuth, (req, res) => {
   const { type, list } = req.body;

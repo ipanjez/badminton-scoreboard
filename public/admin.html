@@ -271,9 +271,9 @@
     
     badge.textContent = dbData[type].length;
     container.innerHTML = dbData[type].map(v =>
-      `<span class="chip cursor-grab active:cursor-grabbing">
+      `<span class="chip cursor-grab active:cursor-grabbing" ondblclick="renameItem('${type}', '${esc(v)}')">
         ${esc(v)}
-        <button onclick="removeItem('${type}','${esc(v)}')" title="Hapus">×</button>
+        <button onclick="removeItem('${type}','${esc(v)}'); event.stopPropagation()" title="Hapus">×</button>
       </span>`
     ).join('');
 
@@ -291,6 +291,22 @@
       });
     }
   }
+
+  async function renameItem(type, oldVal) {
+    const newVal = prompt('Ubah data:', oldVal);
+    if (newVal !== null) {
+      const v = newVal.trim();
+      if (v && v !== oldVal) {
+        const idx = dbData[type].indexOf(oldVal);
+        if (idx !== -1) dbData[type][idx] = v;
+        renderChips(type);
+        const r = await api('/api/db/rename', { type, oldVal, newVal: v });
+        if (!r.ok) alert('Gagal mengubah data');
+      }
+    }
+  }
+
+
 
   function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
