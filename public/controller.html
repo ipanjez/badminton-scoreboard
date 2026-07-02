@@ -123,7 +123,8 @@
     .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9; }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-900 h-screen flex flex-col overflow-hidden">
+<body class="bg-black text-slate-900 h-screen w-screen flex items-center justify-center overflow-hidden">
+<div id="app-container" class="bg-slate-100 flex flex-col relative overflow-hidden flex-shrink-0 shadow-2xl" style="width: 1280px; height: 720px; transform-origin: center center;">
 
 <!-- ── Top Navigation Bar ── -->
 <div class="bg-white border-b border-slate-300 px-4 py-3 flex-shrink-0 flex items-center gap-3">
@@ -156,24 +157,12 @@
   </form>
 </div>
 
-<!-- ── Interval & Match Over Banners (Top Overlays) ── -->
-<div id="interval-banner" class="hidden interval-bar px-4 py-2 flex-shrink-0 flex items-center justify-between">
-  <span class="text-slate-900 font-black text-sm">⏱ INTERVAL</span>
-  <span class="text-yellow-100 font-bold" id="int-score">0 – 0</span>
-  <button onclick="dismissInterval()" class="bg-white/20 hover:bg-white/30 text-slate-900 px-4 py-1.5 rounded-lg font-bold text-xs">Lanjutkan ▶</button>
-</div>
-<div id="match-over-bar" class="hidden bg-green-900/80 border-b border-green-700 flex-shrink-0 px-4 py-2 flex items-center justify-between">
-  <div>
-    <span class="text-green-400 font-black text-sm">🏆 Match Selesai!</span>
-    <span class="text-green-300 text-xs ml-2" id="match-winner-label"></span>
-  </div>
-  <div class="text-slate-700 text-xs">Klik <strong class="text-slate-900">🔄 Reset</strong> di bawah untuk pertandingan baru</div>
-</div>
-
-<!-- ── PDF Auto-Export Notification Bar ── -->
-<div id="pdf-export-bar" class="hidden flex-shrink-0 px-4 py-2 flex items-center justify-between bg-green-900/80 border-b border-green-700">
-  <span class="text-green-300 text-xs font-bold truncate" id="pdf-export-msg"></span>
-  <button onclick="$id('pdf-export-bar').classList.add('hidden')" class="text-green-400 hover:text-white text-lg leading-none ml-4 flex-shrink-0">×</button>
+<!-- ── Match Over Banner (Overlay) ── -->
+<div id="match-over-bar" class="hidden absolute top-16 left-1/2 -translate-x-1/2 z-50 rounded-xl shadow-2xl bg-green-900/95 border border-green-500 px-6 py-4 flex flex-col items-center justify-center gap-2 w-auto max-w-lg text-center backdrop-blur-md">
+  <button onclick="$id('match-over-bar').classList.add('hidden')" class="absolute top-2 right-3 text-green-400 hover:text-white text-2xl font-bold leading-none">&times;</button>
+  <span class="text-green-400 font-black text-xl tracking-wide drop-shadow-md">🏆 MATCH SELESAI!</span>
+  <span class="text-white text-sm font-bold bg-green-800/80 px-4 py-1.5 rounded-lg border border-green-600/50 shadow-inner" id="match-winner-label"></span>
+  <div class="text-green-200 text-xs mt-1">Klik <strong class="text-white bg-green-700 px-2 py-1 rounded shadow-md mx-0.5 border border-green-500">🔄 Reset</strong> di kanan bawah untuk pertandingan baru</div>
 </div>
 
 <!-- ── Main App Container ── -->
@@ -859,19 +848,11 @@
 
   // Auto-export PDF notification
   socket.on('pdf_auto_exported', ({ ok, file }) => {
-    const bar = $id('pdf-export-bar');
-    const msg = $id('pdf-export-msg');
-    if (!bar || !msg) return;
     if (ok) {
-      bar.className = 'flex-shrink-0 px-4 py-2 flex items-center justify-between bg-green-900/80 border-b border-green-700';
-      msg.textContent = `✅ Score sheet PDF otomatis tersimpan: exports/${file}`;
+      toast(`✅ Score sheet PDF otomatis tersimpan: exports/${file}`, 8000);
     } else {
-      bar.className = 'flex-shrink-0 px-4 py-2 flex items-center justify-between bg-red-900/80 border-b border-red-700';
-      msg.textContent = '⚠️ Gagal menyimpan PDF otomatis. Cek log server.';
+      toast('⚠️ Gagal menyimpan PDF otomatis. Cek log server.', 8000);
     }
-    bar.classList.remove('hidden');
-    // Auto-hide after 12 s
-    setTimeout(() => bar.classList.add('hidden'), 12000);
   });
 
   // Fetch initial DB
@@ -1072,32 +1053,41 @@
     }
     // Interval banner & modal
     if (s.isInterval && !s.isMatchOver) {
-      const gsc = s.scores[gk];
-      $id('int-score').textContent = `${gsc.L} – ${gsc.R}`;
-      $id('interval-banner').classList.remove('hidden');
-      
       if ($id('interval-modal').classList.contains('hidden')) {
          $id('interval-modal').classList.remove('hidden');
          const isNextGame = s.intervalType === 'nextgame';
-         intervalSeconds = isNextGame ? (s.intervalNextGame || 120) : (s.intervalPoint11 || 60);
+         const intervalLimit = isNextGame ? (s.intervalNextGame || 120) : (s.intervalPoint11 || 60);
+         intervalSeconds = 0;
          if ($id('interval-subtitle')) $id('interval-subtitle').textContent =
            isNextGame ? 'Jeda antar game sedang berlangsung' : 'Waktu istirahat sedang berlangsung';
+
+         if (!$id('interval-status')) {
+           const statusEl = document.createElement('div');
+           statusEl.id = 'interval-status';
+           statusEl.className = 'text-red-500 font-black text-2xl mb-8 hidden animate-pulse';
+           $id('interval-countdown').after(statusEl);
+         }
+
          $id('interval-countdown').textContent = fmtCountdown(intervalSeconds);
+         $id('interval-countdown').classList.remove('text-red-500');
+         $id('interval-status').classList.add('hidden');
+         $id('interval-status').textContent = `⚠️ Waktu interval (${intervalLimit} detik) telah habis! ⚠️`;
+         $id('interval-countdown').classList.remove('mb-8'); // adjust margin
+
          clearInterval(intervalTimer);
          intervalTimer = setInterval(() => {
-           intervalSeconds--;
-           if (intervalSeconds <= 0) {
-             intervalSeconds = 0;
-             clearInterval(intervalTimer);
+           intervalSeconds++;
+           if (intervalSeconds >= intervalLimit) {
              $id('interval-countdown').classList.add('text-red-500');
+             if ($id('interval-status')) $id('interval-status').classList.remove('hidden');
            } else {
              $id('interval-countdown').classList.remove('text-red-500');
+             if ($id('interval-status')) $id('interval-status').classList.add('hidden');
            }
            $id('interval-countdown').textContent = fmtCountdown(intervalSeconds);
          }, 1000);
       }
     } else {
-      $id('interval-banner').classList.add('hidden');
       $id('interval-modal').classList.add('hidden');
       clearInterval(intervalTimer);
     }
@@ -2554,6 +2544,16 @@
 
   // Initialize custom selects on load
   document.addEventListener('DOMContentLoaded', initCustomSelects);
+</script>
+</div>
+<script>
+  function resizeApp() {
+    const app = document.getElementById('app-container');
+    const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+    app.style.transform = `scale(${scale})`;
+  }
+  window.addEventListener('resize', resizeApp);
+  resizeApp();
 </script>
 </body>
 </html>
