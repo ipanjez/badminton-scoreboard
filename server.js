@@ -740,15 +740,20 @@ app.post('/api/courts/save', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// Start selected court server processes
-app.post('/api/courts/start', requireAuth, async (req, res) => {
-  const { courts } = req.body;
-  if (!Array.isArray(courts) || !courts.length)
-    return res.status(400).json({ ok: false, msg: 'Tidak ada court dipilih' });
+const ACTIVE_COURTS_FILE = path.join(BASE_DIR, '.active_courts.json');
+function saveActiveCourts(startedCourts) {
+  try { fs.writeFileSync(ACTIVE_COURTS_FILE, JSON.stringify(startedCourts)); } catch (e) {}
+}
+function getActiveCourts() {
+  try {
+    if (fs.existsSync(ACTIVE_COURTS_FILE)) return JSON.parse(fs.readFileSync(ACTIVE_COURTS_FILE, 'utf8')) || [];
+  } catch (e) {}
+  return [];
+}
 
+async function startCourts(courts) {
   const { spawn } = require('child_process');
   const started = [], skipped = [], errors = [];
-
   for (const num of courts) {
     const n = parseInt(num, 10);
     if (isNaN(n) || n < 1 || n > 6) continue;
@@ -764,50 +769,60 @@ app.post('/api/courts/start', requireAuth, async (req, res) => {
     const pin    = (raw.match(/CONTROLLER_PIN=(.+)/)          || [])[1]?.trim() || '1111';
     const secret = (raw.match(/SESSION_SECRET=(.+)/)          || [])[1]?.trim() || `court${n}-${Date.now()}`;
 
-    // Already running (this server or a previously started court) → skip
     if (port === PORT || await isPortOpen(port)) { skipped.push(n); continue; }
 
     try {
       let child;
-          const logsDir = path.join(BASE_DIR, 'logs');
-          if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
-          const logStream = fs.openSync(path.join(logsDir, `Court_${n}_Port_${port}_Stdout.log`), 'a');
-          
-          if (IS_PKG) {
-            // Running as packaged .exe — launch another copy with env overrides
-            child = spawn(process.execPath, [], {
-              cwd: BASE_DIR,
-              env: { ...process.env, PORT: String(port), CONTROLLER_PIN: pin, SESSION_SECRET: secret },
-              detached: true,
-              stdio: ['ignore', logStream, logStream]
-            });
-          } else {
-            // Dev mode — pass env overrides directly so they take precedence
-            child = spawn(process.execPath,
-              [__filename], {
-              cwd: BASE_DIR,
-              env: { ...process.env, PORT: String(port), CONTROLLER_PIN: pin, SESSION_SECRET: secret },
-              detached: true,
-              stdio: ['ignore', logStream, logStream]
-            });
+      const logsDir = path.join(BASE_DIR, 'logs');
+      if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+      const logStream = fs.openSync(path.join(logsDir, `Court_${n}_Port_${port}_Stdout.log`), 'a');
+      
+      if (IS_PKG) {
+        child = spawn(process.execPath, [], {
+          cwd: BASE_DIR,
+          env: { ...process.env, PORT: String(port), CONTROLLER_PIN: pin, SESSION_SECRET: secret },
+          detached: true,
+          stdio: ['ignore', logStream, logStream]
+        });
+      } else {
+        child = spawn(process.execPath, [__filename], {
+          cwd: BASE_DIR,
+          env: { ...process.env, PORT: String(port), CONTROLLER_PIN: pin, SESSION_SECRET: secret },
+          detached: true,
+          stdio: ['ignore', logStream, logStream]
+        });
       }
       child.unref();
       started.push(n);
-    } catch (e) {
-      errors.push(`Court ${n}: ${e.message}`);
-    }
+    } catch (e) { errors.push(`Court ${n}: ${e.message}`); }
   }
+  return { started, skipped, errors };
+}
 
-  if (errors.length && !started.length && !skipped.length)
-    return res.status(500).json({ ok: false, msg: errors.join('; ') });
+// Start selected court server processes
+app.post('/api/courts/start', requireAuth, async (req, res) => {
+  const { courts } = req.body;
+  if (!Array.isArray(courts) || !courts.length)
+    return res.status(400).json({ ok: false, msg: 'Tidak ada court dipilih' });
 
-  res.json({ ok: true, started, skipped, errors });
+  const result = await startCourts(courts);
+  
+  const activeNow = new Set([...getActiveCourts(), ...result.started, ...result.skipped]);
+  saveActiveCourts(Array.from(activeNow));
+
+  if (result.errors.length && !result.started.length && !result.skipped.length)
+    return res.status(500).json({ ok: false, msg: result.errors.join('; ') });
+
+  res.json({ ok: true, started: result.started, skipped: result.skipped, errors: result.errors });
 });
 
 // Stop a running court server process
 app.post('/api/courts/stop', requireAuth, async (req, res) => {
   const n = parseInt(req.body.num, 10);
   if (isNaN(n) || n < 1 || n > 6) return res.status(400).json({ ok: false, msg: 'Court tidak valid' });
+
+  const active = getActiveCourts().filter(c => c !== n);
+  saveActiveCourts(active);
 
   const envFile = path.join(BASE_DIR, `.env.court${n}`);
   if (!fs.existsSync(envFile)) return res.status(400).json({ ok: false, msg: 'Court belum dikonfigurasi' });
@@ -1045,4 +1060,15 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  • /admin       → Panel Admin            (PIN: ${CONTROLLER_PIN})`);
   console.log('  • /tutorial    → Panduan Penggunaan    (PIN diperlukan)');
   console.log(`\n  database.xlsx auto-reload saat disimpan di Excel.\n`);
+  
+  if (currentPort === 1000) {
+    const active = getActiveCourts();
+    if (active.length > 0) {
+      console.log(`  ▸ Menjalankan otomatis court yang aktif sebelumnya...`);
+      startCourts(active).then(res => {
+        if (res.started.length) console.log(`  ▸ Berhasil menjalankan court: ${res.started.join(', ')}`);
+        if (res.errors.length) console.log(`  ▸ Gagal: ${res.errors.join('; ')}`);
+      });
+    }
+  }
 });
